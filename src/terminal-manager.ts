@@ -115,8 +115,9 @@ export class TerminalManager {
       return false;
     }
 
-    // Send the input followed by Enter (newline to submit)
-    terminal.pty.write(input + '\n');
+    // Send the input followed by Enter/Return key (carriage return)
+    const cleanInput = input.trim();
+    terminal.pty.write(cleanInput + '\r');
     terminal.lastActivity = new Date();
     return true;
   }
