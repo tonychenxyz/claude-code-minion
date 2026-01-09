@@ -45,7 +45,6 @@ npm install
 echo ""
 echo "Building..."
 npm run build
-npm run mcp:build
 
 # Check for .env file
 if [ ! -f ".env" ]; then
