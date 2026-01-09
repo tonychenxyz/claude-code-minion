@@ -1,13 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(*)",
-      "Read(*)",
-      "Write(*)",
-      "Edit(*)",
-      "Glob(*)",
-      "Grep(*)",
-      "WebFetch(*)",
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep",
       "mcp__slack-messenger__*"
     ],
     "deny": []
