@@ -4,6 +4,12 @@ import { SessionManager } from './session-manager.js';
 import { TerminalManager } from './terminal-manager.js';
 import * as http from 'http';
 
+interface PendingMessage {
+  user: string;
+  text: string;
+  timestamp: Date;
+}
+
 export class SlackBot {
   private app: InstanceType<typeof App>;
   private sessionManager: SessionManager;
@@ -11,6 +17,9 @@ export class SlackBot {
   private orchestratorServer: http.Server | null = null;
   private botUserId: string = '';
   private workingDirectory: string;
+
+  // Message queue per channel - Claude pulls from this via MCP
+  private messageQueues: Map<string, PendingMessage[]> = new Map();
 
   constructor(
     botToken: string,
@@ -182,11 +191,11 @@ export class SlackBot {
 
     // Interrupt command
     if (trimmedText === '!interrupt' || trimmedText === '!stop' || trimmedText === '!esc') {
-      const success = this.terminalManager.sendRawInput(updatedSession.terminalId, '\x1b');
+      const success = this.terminalManager.sendInterrupt(updatedSession.terminalId);
       if (success) {
         await client.chat.postMessage({
           channel: channelId,
-          text: `⏹️ Interrupted Claude Code (sent ESC)`,
+          text: `⏹️ Interrupted Claude Code (sent Ctrl+C)`,
         });
       } else {
         await client.chat.postMessage({
@@ -194,6 +203,18 @@ export class SlackBot {
           text: `Failed to interrupt - terminal not found`,
         });
       }
+      return;
+    }
+
+    // Reset command - start fresh conversation
+    if (trimmedText === '!reset' || trimmedText === '!new') {
+      this.terminalManager.resetConversation(channelId);
+      // Clear message queue
+      this.messageQueues.set(channelId, []);
+      await client.chat.postMessage({
+        channel: channelId,
+        text: `🔄 Conversation reset. Next message will start a new Claude Code session.`,
+      });
       return;
     }
 
@@ -208,7 +229,23 @@ export class SlackBot {
       return;
     }
 
-    // Forward message to terminal
+    // Help command - show available commands
+    if (trimmedText === '!help') {
+      await client.chat.postMessage({
+        channel: channelId,
+        text: `📖 *Available Commands:*\n` +
+          `• \`!interrupt\` / \`!stop\` / \`!esc\` - Interrupt current Claude operation\n` +
+          `• \`!reset\` / \`!new\` - Start a new conversation\n` +
+          `• \`!debug\` / \`!output\` - Show terminal output\n` +
+          `• \`!help\` - Show this help message`,
+      });
+      return;
+    }
+
+    // Queue the message and trigger Claude to check
+    this.queueMessage(channelId, userId, text);
+
+    // Trigger Claude to process the message
     const success = this.terminalManager.sendInput(updatedSession.terminalId, text);
     if (!success) {
       await client.chat.postMessage({
@@ -218,6 +255,32 @@ export class SlackBot {
       // Try to respawn
       await this.spawnClaudeCodeForChannel(channelId, updatedSession.sessionToken, userId, client);
     }
+  }
+
+  private queueMessage(channelId: string, userId: string, text: string): void {
+    if (!this.messageQueues.has(channelId)) {
+      this.messageQueues.set(channelId, []);
+    }
+
+    const queue = this.messageQueues.get(channelId)!;
+    queue.push({
+      user: userId,
+      text: text,
+      timestamp: new Date(),
+    });
+
+    // Keep only last 100 messages
+    if (queue.length > 100) {
+      queue.shift();
+    }
+  }
+
+  // Get and clear pending messages for a channel
+  getPendingMessages(channelId: string): PendingMessage[] {
+    const messages = this.messageQueues.get(channelId) || [];
+    // Clear the queue after reading
+    this.messageQueues.set(channelId, []);
+    return messages;
   }
 
   private async spawnClaudeCodeForChannel(
@@ -267,29 +330,42 @@ export class SlackBot {
     }
   }
 
-  // HTTP server to receive messages from MCP servers
+  // HTTP server to receive messages from MCP servers and serve pending messages
   startOrchestratorServer(port: number): void {
     this.orchestratorServer = http.createServer(async (req, res) => {
-      if (req.method !== 'POST') {
-        res.writeHead(405);
-        res.end('Method not allowed');
+      const url = new URL(req.url || '/', `http://localhost:${port}`);
+
+      // GET /messages/:channelId - MCP server fetches pending messages
+      if (req.method === 'GET' && url.pathname.startsWith('/messages/')) {
+        const channelId = url.pathname.split('/messages/')[1];
+        const messages = this.getPendingMessages(channelId);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ messages }));
         return;
       }
 
-      let body = '';
-      req.on('data', chunk => body += chunk);
-      req.on('end', async () => {
-        try {
-          const data = JSON.parse(body);
-          await this.handleMCPMessage(data);
-          res.writeHead(200);
-          res.end('OK');
-        } catch (error) {
-          console.error('Error handling MCP message:', error);
-          res.writeHead(500);
-          res.end('Error');
-        }
-      });
+      // POST / - MCP server sends messages to Slack
+      if (req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+          try {
+            const data = JSON.parse(body);
+            await this.handleMCPMessage(data);
+            res.writeHead(200);
+            res.end('OK');
+          } catch (error) {
+            console.error('Error handling MCP message:', error);
+            res.writeHead(500);
+            res.end('Error');
+          }
+        });
+        return;
+      }
+
+      res.writeHead(404);
+      res.end('Not found');
     });
 
     this.orchestratorServer.listen(port, () => {

@@ -18,6 +18,8 @@ export class TerminalManager {
   private terminals: Map<string, TerminalInstance> = new Map();
   private outputBuffers: Map<string, string[]> = new Map();
   private workingDirectory: string;
+  private mcpConfigs: Map<string, string> = new Map(); // channelId -> mcpConfigPath
+  private isFirstMessage: Map<string, boolean> = new Map(); // channelId -> isFirst
 
   constructor(workingDirectory: string) {
     this.workingDirectory = workingDirectory;
@@ -46,7 +48,11 @@ export class TerminalManager {
     };
     fs.writeFileSync(mcpConfigPath, JSON.stringify(mcpConfig, null, 2));
 
-    // Spawn Claude Code with the MCP config
+    // Store MCP config path for this channel
+    this.mcpConfigs.set(channelId, mcpConfigPath);
+    this.isFirstMessage.set(channelId, true);
+
+    // Spawn a shell for running claude commands
     const shell = process.platform === 'win32' ? 'powershell.exe' : 'bash';
 
     const ptyProcess = pty.spawn(shell, [], {
@@ -57,7 +63,6 @@ export class TerminalManager {
       env: {
         ...process.env,
         TERM: 'xterm-256color',
-        CLAUDE_MCP_CONFIG: mcpConfigPath,
         MCP_PORT: mcpPort.toString(),
         CHANNEL_ID: channelId,
       },
@@ -98,12 +103,8 @@ export class TerminalManager {
       this.outputBuffers.delete(id);
     });
 
-    // Start Claude Code with MCP configuration
     // Wait a moment for shell to initialize
     await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Start claude with the MCP config
-    ptyProcess.write(`claude --mcp-config "${mcpConfigPath}"\r`);
 
     return terminal;
   }
@@ -115,9 +116,50 @@ export class TerminalManager {
       return false;
     }
 
-    // Send the input followed by Enter/Return key (carriage return)
-    const cleanInput = input.trim();
-    terminal.pty.write(cleanInput + '\r');
+    const channelId = terminal.channelId;
+    const mcpConfigPath = this.mcpConfigs.get(channelId);
+    if (!mcpConfigPath) {
+      console.error(`MCP config not found for channel ${channelId}`);
+      return false;
+    }
+
+    // Escape the input for shell (use double quotes and escape properly)
+    const escapedInput = input
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/\$/g, '\\$')
+      .replace(/`/g, '\\`');
+
+    // System prompt to instruct Claude to use MCP tools for Slack communication
+    const systemPrompt = `You are Claude Code connected to a Slack channel. The user is communicating via Slack, not terminal.
+
+IMPORTANT: You MUST use the slack-messenger MCP tools to communicate:
+- Use send_message to reply to the user
+- Use send_file to share code files
+- Use request_input to tag the user when you need their input
+- Use notify_action before performing significant operations
+- Use notify_result after completing operations
+
+DO NOT just output text - the user won't see it. ALWAYS use the MCP tools to communicate.`;
+
+    const escapedSystemPrompt = systemPrompt
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/\$/g, '\\$')
+      .replace(/`/g, '\\`')
+      .replace(/\n/g, ' ');
+
+    // Use -p flag for non-interactive mode
+    // Use --continue for subsequent messages to maintain context
+    const isFirst = this.isFirstMessage.get(channelId);
+    const continueFlag = isFirst ? '' : '--continue';
+    this.isFirstMessage.set(channelId, false);
+
+    // Build the claude command with system prompt
+    const claudeCmd = `claude -p "${escapedInput}" ${continueFlag} --mcp-config "${mcpConfigPath}" --append-system-prompt "${escapedSystemPrompt}"`;
+
+    console.log(`[Sending to Claude] ${claudeCmd}`);
+    terminal.pty.write(claudeCmd + '\r');
     terminal.lastActivity = new Date();
     return true;
   }
@@ -130,6 +172,20 @@ export class TerminalManager {
     }
 
     terminal.pty.write(input);
+    terminal.lastActivity = new Date();
+    return true;
+  }
+
+  // Send interrupt (Ctrl+C) to stop current claude command
+  sendInterrupt(terminalId: string): boolean {
+    const terminal = this.terminals.get(terminalId);
+    if (!terminal) {
+      console.error(`Terminal ${terminalId} not found`);
+      return false;
+    }
+
+    // Send Ctrl+C
+    terminal.pty.write('\x03');
     terminal.lastActivity = new Date();
     return true;
   }
@@ -190,5 +246,10 @@ export class TerminalManager {
 
     terminal.pty.resize(cols, rows);
     return true;
+  }
+
+  // Reset conversation for a channel (next message will not use --resume)
+  resetConversation(channelId: string): void {
+    this.isFirstMessage.set(channelId, true);
   }
 }

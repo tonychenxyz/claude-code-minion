@@ -44,11 +44,70 @@ async function sendToOrchestrator(data: any): Promise<void> {
   });
 }
 
+async function getFromOrchestrator(path: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const url = new URL(ORCHESTRATOR_URL);
+
+    const options: http.RequestOptions = {
+      hostname: url.hostname,
+      port: url.port || 3000,
+      path: path,
+      method: 'GET',
+    };
+
+    const req = http.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch {
+          resolve({ messages: [] });
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 // Create MCP server
 const server = new McpServer({
   name: 'slack-messenger',
   version: '1.0.0',
 });
+
+// Tool: Get pending messages from Slack
+server.tool(
+  'get_pending_messages',
+  'Check for new messages from the user in Slack. Call this to see if the user has sent any new messages. Returns an array of pending messages.',
+  {},
+  async () => {
+    try {
+      const response = await getFromOrchestrator(`/messages/${CHANNEL_ID}`);
+      const messages = response.messages || [];
+
+      if (messages.length === 0) {
+        return {
+          content: [{ type: 'text', text: 'No new messages' }],
+        };
+      }
+
+      return {
+        content: [{
+          type: 'text',
+          text: `New messages:\n${messages.map((m: any) => `- ${m.user}: ${m.text}`).join('\n')}`
+        }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: 'text', text: `Failed to get messages: ${error}` }],
+        isError: true,
+      };
+    }
+  }
+);
 
 // Tool: Send markdown message to Slack
 server.tool(
