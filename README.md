@@ -56,7 +56,50 @@ After creating the app:
 5. Name: `socket-mode`, Scope: `connections:write`
 6. Copy the **App Token** (starts with `xapp-`)
 
-### 3. Setup Server
+### 3. Setup Claude Code Authentication
+
+The bot needs Claude Code CLI authenticated to work. Choose one method:
+
+**Option A: Claude Max Subscription (Recommended)**
+
+```bash
+# Generate a long-lived OAuth token
+claude setup-token
+
+# You'll see output like:
+# Your OAuth token (valid for 1 year):
+# sk-ant-oat01-...
+# Store this token securely.
+
+# Export the token
+export CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-your-full-token"
+
+# Add to your shell profile for persistence
+echo 'export CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-your-full-token"' >> ~/.bashrc
+source ~/.bashrc
+
+# Also add to .env for the bot
+echo 'CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-your-full-token' >> .env
+```
+
+**Option B: Anthropic API Key**
+
+```bash
+# Add to .env
+echo 'ANTHROPIC_API_KEY=sk-ant-your-api-key' >> .env
+
+# Or export directly
+export ANTHROPIC_API_KEY="sk-ant-your-api-key"
+```
+
+**Verify authentication:**
+
+```bash
+claude -p "hi"
+# Should respond without "Invalid API key" error
+```
+
+### 4. Setup Server
 
 ```bash
 # Clone the repo to your working directory
@@ -74,7 +117,7 @@ nano .env
 npm start
 ```
 
-### 4. Connect via Slack
+### 5. Connect via Slack
 
 1. Copy the **Session Token** shown when the bot starts
 2. DM the bot in Slack with the token
@@ -87,9 +130,14 @@ npm start
 Create a `.env` file:
 
 ```env
-# Required
+# Required - Slack tokens
 SLACK_BOT_TOKEN=xoxb-your-bot-token
 SLACK_APP_TOKEN=xapp-your-app-token
+
+# Required - Claude Code authentication (choose one)
+CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-your-token  # From `claude setup-token`
+# OR
+# ANTHROPIC_API_KEY=sk-ant-your-api-key          # Direct API key
 
 # Optional
 ORCHESTRATOR_PORT=3000
@@ -112,15 +160,14 @@ WORKING_DIRECTORY=/path/to/your/project
 3. A new Claude Code terminal is spawned for this channel
 4. Send messages to interact with Claude
 
-### Interrupting Claude Code
+### Commands
 
-To interrupt Claude Code (equivalent to pressing ESC), send one of these commands:
-
-- `!interrupt`
-- `!stop`
-- `!esc`
-
-You'll receive a confirmation message when the interrupt is sent.
+| Command | Description |
+|---------|-------------|
+| `!interrupt` / `!stop` / `!esc` | Interrupt Claude (sends Ctrl+C) |
+| `!reset` / `!new` | Start a new conversation |
+| `!debug` / `!output` | Show terminal output |
+| `!help` | Show available commands |
 
 ### Multiple Projects
 
@@ -144,6 +191,7 @@ Claude Code in each session has access to these MCP tools for communicating via 
 
 | Tool | Description |
 |------|-------------|
+| `get_pending_messages` | Check for new messages from user |
 | `send_message` | Send markdown message to channel |
 | `send_file` | Upload file to channel |
 | `request_input` | @mention user for input |
@@ -169,15 +217,31 @@ Claude Code in each session has access to these MCP tools for communicating via 
 
 ## Troubleshooting
 
+### "Invalid API key" error
+
+```bash
+# Verify token is set
+echo $CLAUDE_CODE_OAUTH_TOKEN
+
+# Test authentication
+claude -p "hi"
+
+# If still failing, regenerate token
+claude setup-token
+# Copy the FULL token (it's very long!)
+export CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-full-token-here"
+```
+
 ### Bot not responding
 
-- Check that both tokens are correct in `.env`
+- Check that both Slack tokens are correct in `.env`
 - Ensure the bot is invited to the channel
 - Check console for error messages
 
 ### Claude Code not starting
 
 - Verify `claude` CLI is installed: `claude --version`
+- Verify authentication: `claude -p "hi"`
 - Check that the working directory exists
 - Look for errors in the terminal output
 
