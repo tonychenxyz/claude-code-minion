@@ -74,7 +74,7 @@ export class TerminalManager {
     this.terminals.set(id, terminal);
     this.outputBuffers.set(id, []);
 
-    // Collect output
+    // Collect output and log for debugging
     ptyProcess.onData((data: string) => {
       const buffer = this.outputBuffers.get(id);
       if (buffer) {
@@ -85,6 +85,11 @@ export class TerminalManager {
         }
       }
       terminal.lastActivity = new Date();
+      // Debug: log terminal output
+      const cleanData = stripAnsi ? stripAnsi(data) : data;
+      if (cleanData.trim()) {
+        console.log(`[Terminal ${channelId}] ${cleanData}`);
+      }
     });
 
     ptyProcess.onExit(({ exitCode }) => {

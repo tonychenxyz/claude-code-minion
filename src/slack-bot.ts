@@ -177,8 +177,10 @@ export class SlackBot {
     const updatedSession = this.sessionManager.getChannelSession(channelId);
     if (!updatedSession) return;
 
-    // Check for interrupt commands
+    // Check for special commands
     const trimmedText = text.trim().toLowerCase();
+
+    // Interrupt command
     if (trimmedText === '!interrupt' || trimmedText === '!stop' || trimmedText === '!esc') {
       const success = this.terminalManager.sendRawInput(updatedSession.terminalId, '\x1b');
       if (success) {
@@ -192,6 +194,17 @@ export class SlackBot {
           text: `Failed to interrupt - terminal not found`,
         });
       }
+      return;
+    }
+
+    // Debug command - show terminal output
+    if (trimmedText === '!debug' || trimmedText === '!output') {
+      const output = this.terminalManager.getOutput(updatedSession.terminalId, 30);
+      const outputText = output.join('').slice(-3000); // Last 3000 chars
+      await client.chat.postMessage({
+        channel: channelId,
+        text: `📟 Terminal output (last 30 chunks):\n\`\`\`\n${outputText || '(no output)'}\n\`\`\``,
+      });
       return;
     }
 
