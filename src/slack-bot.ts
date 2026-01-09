@@ -176,6 +176,24 @@ export class SlackBot {
     const updatedSession = this.sessionManager.getChannelSession(channelId);
     if (!updatedSession) return;
 
+    // Check for interrupt commands
+    const trimmedText = text.trim().toLowerCase();
+    if (trimmedText === '!interrupt' || trimmedText === '!stop' || trimmedText === '!esc') {
+      const success = this.terminalManager.sendRawInput(updatedSession.terminalId, '\x1b');
+      if (success) {
+        await client.chat.postMessage({
+          channel: channelId,
+          text: `⏹️ Interrupted Claude Code (sent ESC)`,
+        });
+      } else {
+        await client.chat.postMessage({
+          channel: channelId,
+          text: `Failed to interrupt - terminal not found`,
+        });
+      }
+      return;
+    }
+
     // Forward message to terminal
     const success = this.terminalManager.sendInput(updatedSession.terminalId, text);
     if (!success) {

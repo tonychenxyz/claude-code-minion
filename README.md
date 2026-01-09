@@ -112,6 +112,16 @@ WORKING_DIRECTORY=/path/to/your/project
 3. A new Claude Code terminal is spawned for this channel
 4. Send messages to interact with Claude
 
+### Interrupting Claude Code
+
+To interrupt Claude Code (equivalent to pressing ESC), send one of these commands:
+
+- `!interrupt`
+- `!stop`
+- `!esc`
+
+You'll receive a confirmation message when the interrupt is sent.
+
 ### Multiple Projects
 
 You can run multiple instances:
