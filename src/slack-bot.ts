@@ -1,10 +1,11 @@
-import { App, LogLevel } from '@slack/bolt';
+import pkg from '@slack/bolt';
+const { App, LogLevel } = pkg;
 import { SessionManager } from './session-manager.js';
 import { TerminalManager } from './terminal-manager.js';
 import * as http from 'http';
 
 export class SlackBot {
-  private app: App;
+  private app: InstanceType<typeof App>;
   private sessionManager: SessionManager;
   private terminalManager: TerminalManager;
   private orchestratorServer: http.Server | null = null;
