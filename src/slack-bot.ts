@@ -115,18 +115,17 @@ export class SlackBot {
     if (/^[A-F0-9]{8}$/.test(trimmedText)) {
       const session = this.sessionManager.getSessionByToken(trimmedText);
       if (session) {
-        // Update session with this user's info
-        session.userId = userId;
-        session.dmChannelId = channelId;
+        // Update session with this user's info and persist
+        this.sessionManager.updateSessionUser(trimmedText, userId, channelId);
         await say(
-          `Session configured! You can now:\n` +
+          `✅ Session configured! You can now:\n` +
           `1. Create a new channel\n` +
           `2. Invite me to the channel\n` +
           `3. I'll start a Claude Code instance for that channel\n\n` +
           `Working directory: \`${session.workingDirectory}\``
         );
       } else {
-        await say(`Invalid session token. Please check and try again.`);
+        await say(`❌ Invalid session token \`${trimmedText}\`. Please check and try again.\n\nThe token should be 8 characters like \`A1B2C3D4\` - shown in the terminal when you run \`npm start\`.`);
       }
       return;
     }
@@ -136,15 +135,16 @@ export class SlackBot {
     if (!session) {
       await say(
         `Welcome! To get started:\n` +
-        `1. Run the minion on your server\n` +
-        `2. You'll receive a session token\n` +
-        `3. Send me that token here to configure`
+        `1. Run \`npm start\` on your server\n` +
+        `2. Copy the *SESSION TOKEN* shown (8 characters like \`A1B2C3D4\`)\n` +
+        `3. Send me that token here\n\n` +
+        `⚠️ Note: Send the session token, not your Slack user ID!`
       );
       return;
     }
 
     await say(
-      `You're connected! Session token: \`${session.token}\`\n` +
+      `✅ You're connected! Session token: \`${session.token}\`\n` +
       `Working directory: \`${session.workingDirectory}\`\n\n` +
       `Create a channel and invite me to start a Claude Code instance.`
     );

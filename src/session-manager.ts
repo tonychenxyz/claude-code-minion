@@ -84,6 +84,17 @@ export class SessionManager {
     return undefined;
   }
 
+  updateSessionUser(token: string, userId: string, dmChannelId: string): boolean {
+    const session = this.sessions.get(token.toUpperCase());
+    if (session) {
+      session.userId = userId;
+      session.dmChannelId = dmChannelId;
+      this.saveSessions();
+      return true;
+    }
+    return false;
+  }
+
   createChannelSession(
     channelId: string,
     sessionToken: string,
