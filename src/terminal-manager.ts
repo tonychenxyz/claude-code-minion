@@ -19,7 +19,7 @@ export class TerminalManager {
   private outputBuffers: Map<string, string[]> = new Map();
   private workingDirectory: string;
   private mcpConfigs: Map<string, string> = new Map(); // channelId -> mcpConfigPath
-  private isFirstMessage: Map<string, boolean> = new Map(); // channelId -> isFirst
+  private sessionIds: Map<string, string> = new Map(); // channelId -> claude session UUID
 
   constructor(workingDirectory: string) {
     this.workingDirectory = workingDirectory;
@@ -50,7 +50,8 @@ export class TerminalManager {
 
     // Store MCP config path for this channel
     this.mcpConfigs.set(channelId, mcpConfigPath);
-    this.isFirstMessage.set(channelId, true);
+    // Generate unique session ID for this channel's Claude conversations
+    this.sessionIds.set(channelId, uuidv4());
 
     // Spawn a shell for running claude commands
     const shell = process.platform === 'win32' ? 'powershell.exe' : 'bash';
@@ -130,6 +131,13 @@ export class TerminalManager {
       .replace(/\$/g, '\\$')
       .replace(/`/g, '\\`');
 
+    // Get session ID for this channel (ensures separate conversations per channel)
+    const sessionId = this.sessionIds.get(channelId);
+    if (!sessionId) {
+      console.error(`Session ID not found for channel ${channelId}`);
+      return false;
+    }
+
     // System prompt to instruct Claude to use MCP tools for Slack communication
     const systemPrompt = `You are Claude Code connected to a Slack channel. The user is communicating via Slack, not terminal.
 
@@ -149,14 +157,8 @@ DO NOT just output text - the user won't see it. ALWAYS use the MCP tools to com
       .replace(/`/g, '\\`')
       .replace(/\n/g, ' ');
 
-    // Use -p flag for non-interactive mode
-    // Use --continue for subsequent messages to maintain context
-    const isFirst = this.isFirstMessage.get(channelId);
-    const continueFlag = isFirst ? '' : '--continue';
-    this.isFirstMessage.set(channelId, false);
-
-    // Build the claude command with system prompt
-    const claudeCmd = `claude -p "${escapedInput}" ${continueFlag} --mcp-config "${mcpConfigPath}" --append-system-prompt "${escapedSystemPrompt}"`;
+    // Build the claude command with session-id for per-channel conversation isolation
+    const claudeCmd = `claude -p "${escapedInput}" --session-id "${sessionId}" --mcp-config "${mcpConfigPath}" --append-system-prompt "${escapedSystemPrompt}"`;
 
     console.log(`[Sending to Claude] ${claudeCmd}`);
     terminal.pty.write(claudeCmd + '\r');
@@ -248,8 +250,9 @@ DO NOT just output text - the user won't see it. ALWAYS use the MCP tools to com
     return true;
   }
 
-  // Reset conversation for a channel (next message will not use --resume)
+  // Reset conversation for a channel (generates new session ID)
   resetConversation(channelId: string): void {
-    this.isFirstMessage.set(channelId, true);
+    this.sessionIds.set(channelId, uuidv4());
+    console.log(`[Reset] New session ID for channel ${channelId}: ${this.sessionIds.get(channelId)}`);
   }
 }
