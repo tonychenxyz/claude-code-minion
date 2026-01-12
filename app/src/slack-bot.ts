@@ -128,6 +128,88 @@ export class SlackBot {
       const downloadedFiles = await this.processMessageFiles(event, channelId);
       await this.handleChannelMessage(channelId, userId, text, client, downloadedFiles);
     });
+
+    // Slash command: /reset
+    this.app.command('/reset', async ({ command, ack, client }) => {
+      await ack();
+      const channelId = command.channel_id;
+      const channelSession = this.sessionManager.getChannelSession(channelId);
+
+      if (!channelSession) {
+        await client.chat.postMessage({
+          channel: channelId,
+          text: `❌ No Claude Code session in this channel. Invite me first to start one.`,
+        });
+        return;
+      }
+
+      this.terminalManager.resetConversation(channelId);
+      this.messageQueues.set(channelId, []);
+      await client.chat.postMessage({
+        channel: channelId,
+        text: `🔄 Conversation reset. Next message will start a new Claude Code session.`,
+      });
+    });
+
+    // Slash command: /interrupt
+    this.app.command('/interrupt', async ({ command, ack, client }) => {
+      await ack();
+      const channelId = command.channel_id;
+      const channelSession = this.sessionManager.getChannelSession(channelId);
+
+      if (!channelSession) {
+        await client.chat.postMessage({
+          channel: channelId,
+          text: `❌ No Claude Code session in this channel. Invite me first to start one.`,
+        });
+        return;
+      }
+
+      const success = this.terminalManager.sendInterrupt(channelSession.terminalId);
+      this.terminalManager.clearBusyState(channelId);
+
+      if (success) {
+        await client.chat.postMessage({
+          channel: channelId,
+          text: `⏹️ Interrupted Claude Code (sent Ctrl+C)`,
+        });
+      } else {
+        await client.chat.postMessage({
+          channel: channelId,
+          text: `❌ Failed to interrupt - terminal not found`,
+        });
+      }
+    });
+
+    // Slash command: /compact
+    this.app.command('/compact', async ({ command, ack, client }) => {
+      await ack();
+      const channelId = command.channel_id;
+      const channelSession = this.sessionManager.getChannelSession(channelId);
+
+      if (!channelSession) {
+        await client.chat.postMessage({
+          channel: channelId,
+          text: `❌ No Claude Code session in this channel. Invite me first to start one.`,
+        });
+        return;
+      }
+
+      // Send /compact command to Claude Code terminal
+      const success = this.terminalManager.sendCompactCommand(channelSession.terminalId);
+
+      if (success) {
+        await client.chat.postMessage({
+          channel: channelId,
+          text: `📦 Compacting conversation context...`,
+        });
+      } else {
+        await client.chat.postMessage({
+          channel: channelId,
+          text: `❌ Failed to compact - terminal not found`,
+        });
+      }
+    });
   }
 
   private async handleDM(
@@ -254,7 +336,12 @@ export class SlackBot {
     if (trimmedText === '!help') {
       await client.chat.postMessage({
         channel: channelId,
-        text: `📖 *Available Commands:*\n` +
+        text: `📖 *Available Commands:*\n\n` +
+          `*Slash Commands:*\n` +
+          `• \`/reset\` - Start a new conversation\n` +
+          `• \`/interrupt\` - Interrupt current Claude operation\n` +
+          `• \`/compact\` - Compact conversation context\n\n` +
+          `*Text Commands:*\n` +
           `• \`!interrupt\` / \`!stop\` / \`!esc\` - Interrupt current Claude operation\n` +
           `• \`!reset\` / \`!new\` - Start a new conversation\n` +
           `• \`!debug\` / \`!output\` - Show terminal output\n` +

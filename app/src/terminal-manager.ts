@@ -266,6 +266,39 @@ export class TerminalManager {
     return true;
   }
 
+  // Send /compact command to Claude Code to compact conversation context
+  sendCompactCommand(terminalId: string): boolean {
+    const terminal = this.terminals.get(terminalId);
+    if (!terminal) {
+      console.error(`Terminal ${terminalId} not found`);
+      return false;
+    }
+
+    const channelId = terminal.channelId;
+    const mcpConfigPath = this.mcpConfigs.get(channelId);
+    if (!mcpConfigPath) {
+      console.error(`MCP config not found for channel ${channelId}`);
+      return false;
+    }
+
+    const sessionId = this.sessionIds.get(channelId);
+    if (!sessionId) {
+      console.error(`Session ID not found for channel ${channelId}`);
+      return false;
+    }
+
+    // Mark channel as busy
+    this.busyChannels.add(channelId);
+
+    // Send /compact command - this is a built-in Claude Code slash command
+    const claudeCmd = `claude "/compact" --session-id "${sessionId}" --mcp-config "${mcpConfigPath}" ; echo "___CLAUDE_DONE___"`;
+
+    console.log(`[Sending /compact to Claude] session: ${sessionId}`);
+    terminal.pty.write(claudeCmd + '\r');
+    terminal.lastActivity = new Date();
+    return true;
+  }
+
   getOutput(terminalId: string, lines: number = 50): string[] {
     const buffer = this.outputBuffers.get(terminalId);
     if (!buffer) {
