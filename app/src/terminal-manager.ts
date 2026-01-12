@@ -195,12 +195,12 @@ export class TerminalManager {
     // Mark channel as busy
     this.busyChannels.add(channelId);
 
-    // Build the claude command with session-id for per-channel conversation isolation
+    // Build the claude command with --resume for session continuity
     // Instructions are in CLAUDE.md which claude -p reads automatically
     // Add sentinel marker to detect when command finishes
-    const claudeCmd = `claude -p "${escapedInput}" --session-id "${sessionId}" --mcp-config "${mcpConfigPath}" ; echo "___CLAUDE_DONE___"`;
+    const claudeCmd = `claude -p "${escapedInput}" --resume "${sessionId}" --mcp-config "${mcpConfigPath}" ; echo "___CLAUDE_DONE___"`;
 
-    console.log(`[Sending to Claude] claude -p "..." --session-id "${sessionId}"`);
+    console.log(`[Sending to Claude] claude -p "..." --resume "${sessionId}"`);
     terminal.pty.write(claudeCmd + '\r');
     terminal.lastActivity = new Date();
     return true;
