@@ -28,7 +28,7 @@ export class TerminalManager {
   private sessionIds: Map<string, string> = new Map(); // channelId -> claude session UUID
   private busyChannels: Set<string> = new Set(); // channels with running claude commands
   private messageQueues: Map<string, QueuedMessage[]> = new Map(); // channelId -> queued messages
-  private sessionInitialized: Set<string> = new Set(); // channels that have started a session (use --resume after first)
+  private awaitingSessionId: Set<string> = new Set(); // channels waiting to capture session_id from JSON output
 
   constructor(workingDirectory: string, appDirectory: string) {
     this.workingDirectory = workingDirectory;
@@ -60,8 +60,7 @@ export class TerminalManager {
 
     // Store MCP config path for this channel
     this.mcpConfigs.set(channelId, mcpConfigPath);
-    // Generate unique session ID for this channel's Claude conversations
-    this.sessionIds.set(channelId, uuidv4());
+    // Session ID will be captured from first command's JSON output
 
     // Spawn a shell for running claude commands
     const shell = process.platform === 'win32' ? 'powershell.exe' : 'bash';
@@ -107,6 +106,18 @@ export class TerminalManager {
         console.log(`[Terminal ${channelId}] ${cleanData}`);
       }
 
+      // Extract session_id from JSON output if we're waiting for it
+      if (this.awaitingSessionId.has(channelId)) {
+        // Look for session_id in JSON output: "session_id": "uuid"
+        const sessionMatch = cleanData.match(/"session_id"\s*:\s*"([^"]+)"/);
+        if (sessionMatch) {
+          const extractedSessionId = sessionMatch[1];
+          this.sessionIds.set(channelId, extractedSessionId);
+          this.awaitingSessionId.delete(channelId);
+          console.log(`[Session] Captured session ID for channel ${channelId}: ${extractedSessionId.substring(0, 8)}...`);
+        }
+      }
+
       // Detect when Claude command finishes using sentinel marker
       // The marker must appear at the START of a line (after newline) to distinguish
       // from the shell echoing the command itself
@@ -119,7 +130,7 @@ export class TerminalManager {
             // Command finished
             this.busyChannels.delete(channelId);
             console.log(`[Terminal ${channelId}] Claude command finished`);
-            // Process next queued message immediately (no delay needed with unique session IDs)
+            // Process next queued message immediately
             this.processQueue(channelId);
             break;
           }
@@ -187,29 +198,24 @@ export class TerminalManager {
       .replace(/\n/g, ' ')  // Replace newlines with spaces to avoid shell continuation prompts
       .replace(/\r/g, '');  // Remove carriage returns
 
-    // Get session ID for this channel (created when terminal was spawned)
-    const sessionId = this.sessionIds.get(channelId);
-    if (!sessionId) {
-      console.error(`Session ID not found for channel ${channelId}`);
-      return false;
-    }
-
     // Mark channel as busy
     this.busyChannels.add(channelId);
 
     // Build the claude command:
-    // - First message: use --session-id to create the session
-    // - Subsequent messages: use --resume to continue the session
+    // - First message: use --output-format json to capture session_id
+    // - Subsequent messages: use --resume with the captured session_id
     let claudeCmd: string;
-    if (this.sessionInitialized.has(channelId)) {
+    const existingSessionId = this.sessionIds.get(channelId);
+
+    if (existingSessionId) {
       // Resume existing session
-      claudeCmd = `claude -p "${escapedInput}" --resume "${sessionId}" --mcp-config "${mcpConfigPath}" ; echo "___CLAUDE_DONE___"`;
-      console.log(`[Sending to Claude] claude -p "..." --resume "${sessionId}"`);
+      claudeCmd = `claude -p "${escapedInput}" --resume "${existingSessionId}" --mcp-config "${mcpConfigPath}" ; echo "___CLAUDE_DONE___"`;
+      console.log(`[Sending to Claude] claude -p "..." --resume "${existingSessionId.substring(0, 8)}..."`);
     } else {
-      // Create new session
-      claudeCmd = `claude -p "${escapedInput}" --session-id "${sessionId}" --mcp-config "${mcpConfigPath}" ; echo "___CLAUDE_DONE___"`;
-      this.sessionInitialized.add(channelId);
-      console.log(`[Sending to Claude] claude -p "..." --session-id "${sessionId}" (new session)`);
+      // Start new conversation with JSON output to capture session_id
+      claudeCmd = `claude -p "${escapedInput}" --output-format json --mcp-config "${mcpConfigPath}" ; echo "___CLAUDE_DONE___"`;
+      this.awaitingSessionId.add(channelId);
+      console.log(`[Sending to Claude] claude -p "..." --output-format json (new conversation)`);
     }
 
     terminal.pty.write(claudeCmd + '\r');
@@ -332,14 +338,15 @@ export class TerminalManager {
     return true;
   }
 
-  // Reset conversation for a channel (generates new session ID)
+  // Reset conversation for a channel (clears session so next message starts fresh)
   resetConversation(channelId: string): void {
-    this.sessionIds.set(channelId, uuidv4());
-    // Clear busy state, queue, and session initialized flag
+    // Clear session ID so next message will start a new conversation
+    this.sessionIds.delete(channelId);
+    this.awaitingSessionId.delete(channelId);
+    // Clear busy state and queue
     this.busyChannels.delete(channelId);
     this.messageQueues.delete(channelId);
-    this.sessionInitialized.delete(channelId); // Next message will use --session-id again
-    console.log(`[Reset] New session ID for channel ${channelId}: ${this.sessionIds.get(channelId)}`);
+    console.log(`[Reset] Cleared session for channel ${channelId}, next message will start new conversation`);
   }
 
   // Clear busy state for a channel (call after interrupt)
