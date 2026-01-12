@@ -149,13 +149,56 @@ Example:
 
 For one-off tasks, create: `projects/misc/<task-name>/`
 
-## Long-Running Commands
+## Running Commands
 
-For commands > 1 minute:
-1. Send: "🔧 Starting [command] - estimated ~X minutes"
-2. Run in background: `command > /tmp/output.log 2>&1 &`
-3. Check periodically and send progress updates
-4. Send completion message when done
+**IMPORTANT: Run commands in background and poll for progress!**
+
+Unless the user explicitly asks you to run something in foreground, **ALWAYS**:
+
+### 1. Start command in background
+```bash
+command > /tmp/output.log 2>&1 &
+PID=$!
+```
+
+### 2. Report that you started
+Send: "🔧 Running: `[command]` (PID: $PID)"
+
+### 3. Poll with sleep and report progress
+```bash
+while kill -0 $PID 2>/dev/null; do
+  sleep 5
+  tail -20 /tmp/output.log
+done
+```
+
+After each check, send progress:
+- "⏳ Still running... [summary of recent output]"
+- "⏳ Progress: 50% complete..."
+
+### 4. Report completion
+```bash
+wait $PID
+EXIT_CODE=$?
+```
+Send: "✅ Command finished (exit code: $EXIT_CODE)"
+
+### Example workflow:
+```
+You send: "🔧 Running: `npm install`"
+[Start in background, save PID]
+[Sleep 5 seconds, check output]
+You send: "⏳ Installing dependencies... added 50 packages so far"
+[Sleep 5 seconds, check output]
+You send: "⏳ Still installing... resolving peer dependencies"
+[Command finishes]
+You send: "✅ npm install complete - added 150 packages"
+```
+
+### Why background + polling?
+- User sees real-time progress instead of silence
+- You can report what's happening as it happens
+- Long commands don't block you from communicating
 
 ## File Attachments
 
