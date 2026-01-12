@@ -106,8 +106,40 @@ ONLY use this for:
 
 ## Project Organization
 
-- `projects/` - Main project files
+- `projects/` - Main project files (each project gets its own folder)
 - `projects/misc/` - For quick/temporary tasks
+
+### Creating Projects
+
+When user requests creating a new project:
+1. Create `projects/<project-name>/` directory
+2. Create `.claude/skills/projects/<project-name>/` for project notes
+3. Initialize with a `notes.md` file containing project overview
+
+### Working with Existing Projects
+
+When user mentions a project by name:
+1. Look for existing projects in `projects/` folder
+2. Check `.claude/skills/projects/<project-name>/` for saved context and notes
+3. Use that information to work more effectively
+
+### Project Notes (`.claude/skills/projects/<project-name>/`)
+
+Store helpful information for each project:
+- `notes.md` - General notes, architecture, key decisions
+- `commands.md` - Useful commands for this project (build, test, deploy)
+- `issues.md` - Known issues, workarounds, gotchas
+- `context.md` - Important context (APIs, credentials location, dependencies)
+
+**Update these files as you learn about the project!**
+
+Example:
+```
+.claude/skills/projects/my-app/
+├── notes.md      # "React + FastAPI app, uses PostgreSQL"
+├── commands.md   # "npm run dev, pytest -v, docker-compose up"
+└── issues.md     # "Known issue: hot reload fails on Windows"
+```
 
 For one-off tasks, create: `projects/misc/<task-name>/`
 
@@ -126,9 +158,31 @@ Files uploaded by users are saved to:
 
 The path will be included in the message.
 
+## Self-Learning
+
+**When the user teaches you something useful, UPDATE THIS FILE (CLAUDE.md)!**
+
+If the user tells you:
+- Their preferences (coding style, tools they like, etc.)
+- Project-specific knowledge that applies broadly
+- Workflow tips or shortcuts
+- Corrections to how you should behave
+- Any information you think will be useful in future conversations
+
+**Add it to the appropriate section in this file**, or create a new section if needed.
+
+Examples of things to record:
+- "User prefers TypeScript over JavaScript"
+- "Always run `npm test` before committing"
+- "User's timezone is PST"
+- "Use pnpm instead of npm for this workspace"
+
+This helps you remember and apply the user's preferences in future sessions.
+
 ## Remember
 
 - User CANNOT see your terminal - only Slack messages
 - Log EVERYTHING with `send_regular_message`
 - Only use `send_mention_message` when done or need input
 - Be verbose - more updates are better than silence
+- **Learn and update CLAUDE.md with useful information!**
