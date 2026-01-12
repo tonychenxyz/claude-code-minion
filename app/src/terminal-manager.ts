@@ -30,8 +30,8 @@ export class TerminalManager {
   async spawnClaudeCode(channelId: string, mcpPort: number): Promise<TerminalInstance> {
     const id = uuidv4();
 
-    // Create MCP config for this instance
-    const mcpConfigDir = path.join(this.workingDirectory, '.claude-minion', channelId);
+    // Create MCP config for this instance (stored in app directory)
+    const mcpConfigDir = path.join(this.appDirectory, '.claude-minion', channelId);
     fs.mkdirSync(mcpConfigDir, { recursive: true });
 
     const mcpConfigPath = path.join(mcpConfigDir, 'mcp-config.json');

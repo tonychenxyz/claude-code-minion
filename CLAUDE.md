@@ -151,7 +151,7 @@ tail -f /tmp/cmd_output.log | head -50
 
 When users send files via Slack, they are automatically downloaded to:
 ```
-.claude-minion/tmp/<channel-id>/<timestamp>-<filename>
+app/.claude-minion/tmp/<channel-id>/<timestamp>-<filename>
 ```
 
 The message will include the file path(s), e.g.:
@@ -159,7 +159,7 @@ The message will include the file path(s), e.g.:
 User: "Here's the data file"
 
 [Attached files saved to:
-  - .claude-minion/tmp/C123456/1705312345-data.csv]
+  - app/.claude-minion/tmp/C123456/1705312345-data.csv]
 ```
 
 ### Working with Attached Files
@@ -168,9 +168,9 @@ User: "Here's the data file"
 2. **Move to proper location** if needed for organization:
    ```bash
    # Example: Move to project directory
-   mv .claude-minion/tmp/C123456/1705312345-data.csv projects/my-project/data/
+   mv app/.claude-minion/tmp/C123456/1705312345-data.csv projects/my-project/data/
    ```
-3. **Clean up tmp** periodically - files in `.claude-minion/tmp/` are temporary
+3. **Clean up tmp** periodically - files in `app/.claude-minion/tmp/` are temporary
 
 ### Best Practices
 

@@ -109,6 +109,7 @@ async function main() {
     config.slackBotToken,
     config.slackAppToken,
     config.workingDirectory,
+    config.appDirectory,
     sessionManager,
     terminalManager
   );

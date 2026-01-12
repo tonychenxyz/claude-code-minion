@@ -120,8 +120,8 @@ cd claude-code-minion/app
 # Run setup
 ./setup.sh
 
-# Configure tokens in app/.env
-nano .env
+# Configure tokens in .env (root directory)
+nano ../.env
 # Add: SLACK_BOT_TOKEN, SLACK_APP_TOKEN, CLAUDE_CODE_OAUTH_TOKEN
 
 # Start the bot
@@ -226,7 +226,7 @@ export CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-full-token-here"
 ### Messages not being sent to Slack
 
 - The orchestrator server must be running (port 3000 by default)
-- Check MCP configuration in `projects/.claude-minion/<channel-id>/mcp-config.json`
+- Check MCP configuration in `app/.claude-minion/<channel-id>/mcp-config.json`
 
 ## Development
 

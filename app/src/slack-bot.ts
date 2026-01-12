@@ -28,6 +28,7 @@ export class SlackBot {
   private orchestratorServer: http.Server | null = null;
   private botUserId: string = '';
   private workingDirectory: string;
+  private appDirectory: string;
 
   // Message queue per channel - Claude pulls from this via MCP
   private messageQueues: Map<string, PendingMessage[]> = new Map();
@@ -36,10 +37,12 @@ export class SlackBot {
     botToken: string,
     appToken: string,
     workingDirectory: string,
+    appDirectory: string,
     sessionManager: SessionManager,
     terminalManager: TerminalManager
   ) {
     this.workingDirectory = workingDirectory;
+    this.appDirectory = appDirectory;
     this.sessionManager = sessionManager;
     this.terminalManager = terminalManager;
 
@@ -477,8 +480,8 @@ export class SlackBot {
       return null;
     }
 
-    // Create tmp directory for this channel
-    const tmpDir = path.join(this.workingDirectory, '.claude-minion', 'tmp', channelId);
+    // Create tmp directory for this channel (stored in app directory)
+    const tmpDir = path.join(this.appDirectory, '.claude-minion', 'tmp', channelId);
     fs.mkdirSync(tmpDir, { recursive: true });
 
     // Generate unique filename with timestamp
