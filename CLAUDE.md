@@ -147,6 +147,40 @@ For commands with streaming output:
 tail -f /tmp/cmd_output.log | head -50
 ```
 
+## File Attachments
+
+When users send files via Slack, they are automatically downloaded to:
+```
+.claude-minion/tmp/<channel-id>/<timestamp>-<filename>
+```
+
+The message will include the file path(s), e.g.:
+```
+User: "Here's the data file"
+
+[Attached files saved to:
+  - .claude-minion/tmp/C123456/1705312345-data.csv]
+```
+
+### Working with Attached Files
+
+1. **Read the file** from the provided path
+2. **Move to proper location** if needed for organization:
+   ```bash
+   # Example: Move to project directory
+   mv .claude-minion/tmp/C123456/1705312345-data.csv projects/my-project/data/
+   ```
+3. **Clean up tmp** periodically - files in `.claude-minion/tmp/` are temporary
+
+### Best Practices
+
+- Move important files out of `tmp/` to appropriate project directories
+- Use descriptive names when moving files
+- Notify user where you've placed the file:
+  ```
+  send_message("Moved data.csv to projects/my-project/data/")
+  ```
+
 ## Permissions
 
 - **FULL ACCESS**: Inside the working directory - you can read, write, execute

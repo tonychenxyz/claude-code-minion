@@ -3,11 +3,22 @@ const { App, LogLevel } = pkg;
 import { SessionManager } from './session-manager.js';
 import { TerminalManager } from './terminal-manager.js';
 import * as http from 'http';
+import * as https from 'https';
+import * as fs from 'fs';
+import * as path from 'path';
 
 interface PendingMessage {
   user: string;
   text: string;
   timestamp: Date;
+  files?: string[]; // Paths to downloaded files
+}
+
+interface SlackFile {
+  id: string;
+  name: string;
+  url_private_download?: string;
+  url_private?: string;
 }
 
 export class SlackBot {
@@ -63,7 +74,9 @@ export class SlackBot {
       }
 
       // Channel message - forward to Claude Code
-      await this.handleChannelMessage(channelId, userId, text, client);
+      // Process any attached files
+      const downloadedFiles = await this.processMessageFiles(message, channelId);
+      await this.handleChannelMessage(channelId, userId, text, client, downloadedFiles);
     });
 
     // Handle bot being added to a channel
@@ -108,7 +121,9 @@ export class SlackBot {
       if (!userId) return;
       const text = event.text.replace(/<@[A-Z0-9]+>/gi, '').trim();
 
-      await this.handleChannelMessage(channelId, userId, text, client);
+      // Process any attached files
+      const downloadedFiles = await this.processMessageFiles(event, channelId);
+      await this.handleChannelMessage(channelId, userId, text, client, downloadedFiles);
     });
   }
 
@@ -163,7 +178,8 @@ export class SlackBot {
     channelId: string,
     userId: string,
     text: string,
-    client: any
+    client: any,
+    files: string[] = []
   ): Promise<void> {
     const channelSession = this.sessionManager.getChannelSession(channelId);
     if (!channelSession) {
@@ -242,11 +258,18 @@ export class SlackBot {
       return;
     }
 
+    // Build message with file info if files were attached
+    let messageWithFiles = text;
+    if (files.length > 0) {
+      const fileList = files.map(f => `  - ${f}`).join('\n');
+      messageWithFiles = `${text}\n\n[Attached files saved to:\n${fileList}]`;
+    }
+
     // Queue the message and trigger Claude to check
-    this.queueMessage(channelId, userId, text);
+    this.queueMessage(channelId, userId, messageWithFiles);
 
     // Trigger Claude to process the message
-    const success = this.terminalManager.sendInput(updatedSession.terminalId, text);
+    const success = this.terminalManager.sendInput(updatedSession.terminalId, messageWithFiles);
     if (!success) {
       await client.chat.postMessage({
         channel: channelId,
@@ -444,5 +467,91 @@ export class SlackBot {
     if (this.orchestratorServer) {
       this.orchestratorServer.close();
     }
+  }
+
+  // Download a file from Slack and save to tmp directory
+  private async downloadSlackFile(file: SlackFile, channelId: string): Promise<string | null> {
+    const url = file.url_private_download || file.url_private;
+    if (!url) {
+      console.error('No download URL for file:', file.name);
+      return null;
+    }
+
+    // Create tmp directory for this channel
+    const tmpDir = path.join(this.workingDirectory, '.claude-minion', 'tmp', channelId);
+    fs.mkdirSync(tmpDir, { recursive: true });
+
+    // Generate unique filename with timestamp
+    const timestamp = Date.now();
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const filePath = path.join(tmpDir, `${timestamp}-${safeName}`);
+
+    return new Promise((resolve) => {
+      const token = this.app.client.token;
+
+      const request = https.get(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      }, (response) => {
+        if (response.statusCode === 302 || response.statusCode === 301) {
+          // Handle redirect
+          const redirectUrl = response.headers.location;
+          if (redirectUrl) {
+            https.get(redirectUrl, {
+              headers: { 'Authorization': `Bearer ${token}` },
+            }, (redirectResponse) => {
+              const writeStream = fs.createWriteStream(filePath);
+              redirectResponse.pipe(writeStream);
+              writeStream.on('finish', () => {
+                console.log(`Downloaded file: ${filePath}`);
+                resolve(filePath);
+              });
+              writeStream.on('error', (err) => {
+                console.error('Error writing file:', err);
+                resolve(null);
+              });
+            });
+          } else {
+            resolve(null);
+          }
+        } else if (response.statusCode === 200) {
+          const writeStream = fs.createWriteStream(filePath);
+          response.pipe(writeStream);
+          writeStream.on('finish', () => {
+            console.log(`Downloaded file: ${filePath}`);
+            resolve(filePath);
+          });
+          writeStream.on('error', (err) => {
+            console.error('Error writing file:', err);
+            resolve(null);
+          });
+        } else {
+          console.error(`Failed to download file: ${response.statusCode}`);
+          resolve(null);
+        }
+      });
+
+      request.on('error', (err) => {
+        console.error('Error downloading file:', err);
+        resolve(null);
+      });
+    });
+  }
+
+  // Process files attached to a message
+  private async processMessageFiles(message: any, channelId: string): Promise<string[]> {
+    const downloadedFiles: string[] = [];
+
+    if (message.files && Array.isArray(message.files)) {
+      for (const file of message.files as SlackFile[]) {
+        const filePath = await this.downloadSlackFile(file, channelId);
+        if (filePath) {
+          downloadedFiles.push(filePath);
+        }
+      }
+    }
+
+    return downloadedFiles;
   }
 }
