@@ -181,7 +181,9 @@ export class TerminalManager {
       .replace(/\\/g, '\\\\')
       .replace(/"/g, '\\"')
       .replace(/\$/g, '\\$')
-      .replace(/`/g, '\\`');
+      .replace(/`/g, '\\`')
+      .replace(/\n/g, ' ')  // Replace newlines with spaces to avoid shell continuation prompts
+      .replace(/\r/g, '');  // Remove carriage returns
 
     // Get session ID for this channel (ensures separate conversations per channel)
     const sessionId = this.sessionIds.get(channelId);
