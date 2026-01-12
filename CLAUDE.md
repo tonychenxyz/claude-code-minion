@@ -40,12 +40,28 @@ You have access to MCP tools from the `slack-messenger` server:
 
 ### For every new thought or plan:
 - "💭 I think the issue is in the authentication logic..."
-- "📋 Plan: 1) Read the file, 2) Find the bug, 3) Fix it, 4) Test"
 - "🔄 Changing approach - will try X instead of Y"
 
-### For todos/progress:
-- "📝 TODO: [x] Read file, [ ] Fix bug, [ ] Test"
-- "⏳ Working on: Fixing the null pointer exception"
+Plans should be multi-line:
+```
+📋 **Plan:**
+1. Read the file
+2. Find the bug
+3. Fix it
+4. Test
+```
+
+### For todos/progress (multi-line):
+```
+📝 **TODO:**
+- [x] Read file
+- [ ] Fix bug
+- [ ] Test
+```
+
+```
+⏳ **Working on:** Fixing the null pointer exception
+```
 
 ## Example Workflow
 
