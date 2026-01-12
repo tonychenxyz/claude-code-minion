@@ -40,8 +40,8 @@ function loadConfig(): Config {
   const slackBotToken = process.env.SLACK_BOT_TOKEN;
   const slackAppToken = process.env.SLACK_APP_TOKEN;
   const orchestratorPort = parseInt(process.env.ORCHESTRATOR_PORT || '3000', 10);
-  // Default working directory is ../projects relative to app/
-  const defaultWorkingDir = path.resolve(appDirectory, '..', 'projects');
+  // Default working directory is root (parent of app/)
+  const defaultWorkingDir = rootDirectory;
   const workingDirectory = process.env.WORKING_DIRECTORY || defaultWorkingDir;
 
   if (!slackBotToken) {

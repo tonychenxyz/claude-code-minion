@@ -43,11 +43,11 @@ Talk to Claude Code running on a remote server through Slack. The server initiat
 │   ├── dist/                 # Compiled JavaScript
 │   ├── package.json
 │   └── setup.sh
-├── projects/                 # Working directory for Claude Code
-│   ├── .claude/              # Claude settings
-│   └── CLAUDE.md             # Instructions for Claude Code
+├── projects/                 # Your project files (Claude works here)
+├── .claude/                  # Claude settings
 ├── .env                      # Configuration (create from .env.example)
 ├── .env.example
+├── CLAUDE.md                 # Instructions for Claude Code
 ├── slack-app-manifest.yaml   # Slack app manifest
 └── README.md
 ```
