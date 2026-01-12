@@ -144,21 +144,10 @@ export class SlackBot {
       if (session) {
         // Update session with this user's info and persist
         this.sessionManager.updateSessionUser(trimmedText, userId, channelId);
-
-        // Start Claude Code instance for this DM channel immediately
         await say(
           `✅ Session configured!\n` +
           `Working directory: \`${session.workingDirectory}\`\n\n` +
-          `Starting Claude Code instance...`
-        );
-
-        // Spawn instance for DM channel so user can interact immediately
-        await this.spawnClaudeCodeForChannel(channelId, trimmedText, userId, null);
-
-        await say(
-          `🚀 Claude Code is ready! You can start chatting here, or:\n` +
-          `• Create a channel and invite me for a separate workspace\n` +
-          `• Each channel gets its own Claude Code instance`
+          `Now go to any channel where I'm a member and send a message - Claude Code will start automatically.`
         );
       } else {
         await say(`❌ Invalid session token \`${trimmedText}\`. Please check and try again.\n\nThe token should be 8 characters like \`A1B2C3D4\` - shown in the terminal when you run \`npm start\`.`);
@@ -292,14 +281,24 @@ export class SlackBot {
     }
 
     // Trigger Claude to process the message (will queue if busy)
-    const success = await this.terminalManager.sendInput(updatedSession.terminalId, messageWithFiles);
+    let success = await this.terminalManager.sendInput(updatedSession.terminalId, messageWithFiles);
     if (!success) {
-      await client.chat.postMessage({
-        channel: channelId,
-        text: `Claude Code instance not found. Let me restart it...`,
-      });
-      // Try to respawn
+      // Terminal not found - respawn and retry
+      console.log(`[Channel ${channelId}] Terminal not found, respawning...`);
       await this.spawnClaudeCodeForChannel(channelId, updatedSession.sessionToken, userId, client);
+
+      // Wait for terminal to be ready and retry sending the message
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      const newSession = this.sessionManager.getChannelSession(channelId);
+      if (newSession) {
+        success = await this.terminalManager.sendInput(newSession.terminalId, messageWithFiles);
+        if (!success) {
+          await client.chat.postMessage({
+            channel: channelId,
+            text: `Failed to start Claude Code. Please try again.`,
+          });
+        }
+      }
     }
   }
 
