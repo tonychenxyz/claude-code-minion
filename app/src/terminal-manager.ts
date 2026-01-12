@@ -14,6 +14,11 @@ async function initStripAnsi() {
 
 initStripAnsi();
 
+interface QueuedMessage {
+  input: string;
+  resolve: (success: boolean) => void;
+}
+
 export class TerminalManager {
   private terminals: Map<string, TerminalInstance> = new Map();
   private outputBuffers: Map<string, string[]> = new Map();
@@ -21,6 +26,8 @@ export class TerminalManager {
   private appDirectory: string;
   private mcpConfigs: Map<string, string> = new Map(); // channelId -> mcpConfigPath
   private sessionIds: Map<string, string> = new Map(); // channelId -> claude session UUID
+  private busyChannels: Set<string> = new Set(); // channels with running claude commands
+  private messageQueues: Map<string, QueuedMessage[]> = new Map(); // channelId -> queued messages
 
   constructor(workingDirectory: string, appDirectory: string) {
     this.workingDirectory = workingDirectory;
@@ -98,6 +105,19 @@ export class TerminalManager {
       if (cleanData.trim()) {
         console.log(`[Terminal ${channelId}] ${cleanData}`);
       }
+
+      // Detect when Claude command finishes (shell prompt returns)
+      // Look for common shell prompt patterns at end of output
+      if (this.busyChannels.has(channelId)) {
+        // Check if output ends with a shell prompt ($ or > followed by space/end)
+        const trimmed = cleanData.trim();
+        if (trimmed.endsWith('$') || trimmed.match(/\]\s*$/) || trimmed.match(/>\s*$/)) {
+          // Command likely finished, process next in queue
+          this.busyChannels.delete(channelId);
+          console.log(`[Terminal ${channelId}] Claude command finished, processing queue...`);
+          this.processQueue(channelId);
+        }
+      }
     });
 
     ptyProcess.onExit(({ exitCode }) => {
@@ -112,7 +132,32 @@ export class TerminalManager {
     return terminal;
   }
 
-  sendInput(terminalId: string, input: string): boolean {
+  // Queue a message to be sent to Claude (handles busy state)
+  async sendInput(terminalId: string, input: string): Promise<boolean> {
+    const terminal = this.terminals.get(terminalId);
+    if (!terminal) {
+      console.error(`Terminal ${terminalId} not found`);
+      return false;
+    }
+
+    const channelId = terminal.channelId;
+
+    // If channel is busy, queue the message
+    if (this.busyChannels.has(channelId)) {
+      console.log(`[Queue] Channel ${channelId} is busy, queuing message`);
+      return new Promise((resolve) => {
+        const queue = this.messageQueues.get(channelId) || [];
+        queue.push({ input, resolve });
+        this.messageQueues.set(channelId, queue);
+      });
+    }
+
+    // Send immediately
+    return this.sendInputNow(terminalId, input);
+  }
+
+  // Actually send input to Claude (internal method)
+  private sendInputNow(terminalId: string, input: string): boolean {
     const terminal = this.terminals.get(terminalId);
     if (!terminal) {
       console.error(`Terminal ${terminalId} not found`);
@@ -140,6 +185,9 @@ export class TerminalManager {
       return false;
     }
 
+    // Mark channel as busy
+    this.busyChannels.add(channelId);
+
     // Build the claude command with session-id for per-channel conversation isolation
     // Instructions are in CLAUDE.md which claude -p reads automatically
     const claudeCmd = `claude -p "${escapedInput}" --session-id "${sessionId}" --mcp-config "${mcpConfigPath}"`;
@@ -148,6 +196,37 @@ export class TerminalManager {
     terminal.pty.write(claudeCmd + '\r');
     terminal.lastActivity = new Date();
     return true;
+  }
+
+  // Process next message in the queue for a channel
+  private processQueue(channelId: string): void {
+    const queue = this.messageQueues.get(channelId);
+    if (!queue || queue.length === 0) {
+      return;
+    }
+
+    const terminal = this.getTerminalByChannelId(channelId);
+    if (!terminal) {
+      // Clear queue if terminal is gone
+      this.messageQueues.delete(channelId);
+      return;
+    }
+
+    const next = queue.shift()!;
+    console.log(`[Queue] Processing next message for channel ${channelId}`);
+
+    const success = this.sendInputNow(terminal.id, next.input);
+    next.resolve(success);
+  }
+
+  // Check if channel is currently processing a command
+  isChannelBusy(channelId: string): boolean {
+    return this.busyChannels.has(channelId);
+  }
+
+  // Get queue length for a channel
+  getQueueLength(channelId: string): number {
+    return this.messageQueues.get(channelId)?.length || 0;
   }
 
   sendRawInput(terminalId: string, input: string): boolean {
@@ -237,6 +316,15 @@ export class TerminalManager {
   // Reset conversation for a channel (generates new session ID)
   resetConversation(channelId: string): void {
     this.sessionIds.set(channelId, uuidv4());
+    // Clear busy state and queue
+    this.busyChannels.delete(channelId);
+    this.messageQueues.delete(channelId);
     console.log(`[Reset] New session ID for channel ${channelId}: ${this.sessionIds.get(channelId)}`);
+  }
+
+  // Clear busy state for a channel (call after interrupt)
+  clearBusyState(channelId: string): void {
+    this.busyChannels.delete(channelId);
+    console.log(`[Interrupt] Cleared busy state for channel ${channelId}`);
   }
 }

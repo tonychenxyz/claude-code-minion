@@ -211,6 +211,8 @@ export class SlackBot {
     // Interrupt command
     if (trimmedText === '!interrupt' || trimmedText === '!stop' || trimmedText === '!esc') {
       const success = this.terminalManager.sendInterrupt(updatedSession.terminalId);
+      // Clear busy state so next message can be processed
+      this.terminalManager.clearBusyState(channelId);
       if (success) {
         await client.chat.postMessage({
           channel: channelId,
@@ -271,8 +273,17 @@ export class SlackBot {
     // Queue the message and trigger Claude to check
     this.queueMessage(channelId, userId, messageWithFiles);
 
-    // Trigger Claude to process the message
-    const success = this.terminalManager.sendInput(updatedSession.terminalId, messageWithFiles);
+    // Check if Claude is busy and notify user
+    if (this.terminalManager.isChannelBusy(channelId)) {
+      const queuePos = this.terminalManager.getQueueLength(channelId) + 1;
+      await client.chat.postMessage({
+        channel: channelId,
+        text: `⏳ Claude is busy. Your message is queued (position ${queuePos}).`,
+      });
+    }
+
+    // Trigger Claude to process the message (will queue if busy)
+    const success = await this.terminalManager.sendInput(updatedSession.terminalId, messageWithFiles);
     if (!success) {
       await client.chat.postMessage({
         channel: channelId,
