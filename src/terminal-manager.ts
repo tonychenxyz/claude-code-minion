@@ -138,27 +138,9 @@ export class TerminalManager {
       return false;
     }
 
-    // System prompt to instruct Claude to use MCP tools for Slack communication
-    const systemPrompt = `You are Claude Code connected to a Slack channel. The user is communicating via Slack, not terminal.
-
-IMPORTANT: You MUST use the slack-messenger MCP tools to communicate:
-- Use send_message to reply to the user
-- Use send_file to share code files
-- Use request_input to tag the user when you need their input
-- Use notify_action before performing significant operations
-- Use notify_result after completing operations
-
-DO NOT just output text - the user won't see it. ALWAYS use the MCP tools to communicate.`;
-
-    const escapedSystemPrompt = systemPrompt
-      .replace(/\\/g, '\\\\')
-      .replace(/"/g, '\\"')
-      .replace(/\$/g, '\\$')
-      .replace(/`/g, '\\`')
-      .replace(/\n/g, ' ');
-
     // Build the claude command with session-id for per-channel conversation isolation
-    const claudeCmd = `claude -p "${escapedInput}" --session-id "${sessionId}" --mcp-config "${mcpConfigPath}" --append-system-prompt "${escapedSystemPrompt}"`;
+    // Instructions are in CLAUDE.md which claude -p reads automatically
+    const claudeCmd = `claude -p "${escapedInput}" --session-id "${sessionId}" --mcp-config "${mcpConfigPath}"`;
 
     console.log(`[Sending to Claude] ${claudeCmd}`);
     terminal.pty.write(claudeCmd + '\r');
