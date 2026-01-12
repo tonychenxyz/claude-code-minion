@@ -579,6 +579,30 @@ export class SlackBot {
         });
       }
     });
+
+    // /minion-debug - Show terminal output
+    this.app.command('/minion-debug', async ({ command, ack, respond }) => {
+      await ack();
+
+      const channelId = command.channel_id;
+      const channelSession = this.sessionManager.getChannelSession(channelId);
+
+      if (!channelSession) {
+        await respond({
+          response_type: 'ephemeral',
+          text: '❌ No Claude Code session in this channel.',
+        });
+        return;
+      }
+
+      const output = this.terminalManager.getOutput(channelSession.terminalId, 30);
+      const outputText = output.join('').slice(-3000); // Last 3000 chars
+
+      await respond({
+        response_type: 'ephemeral',
+        text: `📟 Terminal output (last 30 chunks):\n\`\`\`\n${outputText || '(no output)'}\n\`\`\``,
+      });
+    });
   }
 
   async start(): Promise<void> {

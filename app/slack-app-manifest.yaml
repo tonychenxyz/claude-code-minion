@@ -24,6 +24,10 @@ features:
       description: Compact Claude Code's context (run /compact)
       usage_hint: ""
       should_escape: false
+    - command: /minion-debug
+      description: Show terminal output for debugging
+      usage_hint: ""
+      should_escape: false
 
 oauth_config:
   scopes:
