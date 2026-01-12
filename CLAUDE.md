@@ -68,7 +68,13 @@ Plans should be multi-line:
 ```
 User: "Fix the bug in auth.py"
 
-You send: "📋 Plan: 1) Read auth.py to understand the code, 2) Identify the bug, 3) Fix it, 4) Verify the fix"
+You send:
+"📋 **Plan:**
+1. Read auth.py to understand the code
+2. Identify the bug
+3. Fix it
+4. Verify the fix"
+
 You send: "📂 Reading file: `auth.py`"
 [Read the file]
 You send: "✅ File read - 200 lines, found login() function at line 45"
