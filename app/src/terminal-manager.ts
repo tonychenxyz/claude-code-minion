@@ -19,6 +19,13 @@ interface QueuedMessage {
   resolve: (success: boolean) => void;
 }
 
+interface RetryState {
+  input: string;
+  retryCount: number;
+  maxRetries: number;
+  resolve: (success: boolean) => void;
+}
+
 export class TerminalManager {
   private terminals: Map<string, TerminalInstance> = new Map();
   private outputBuffers: Map<string, string[]> = new Map();
@@ -28,6 +35,7 @@ export class TerminalManager {
   private sessionIds: Map<string, string> = new Map(); // channelId -> claude session UUID
   private busyChannels: Set<string> = new Set(); // channels with running claude commands
   private messageQueues: Map<string, QueuedMessage[]> = new Map(); // channelId -> queued messages
+  private retryStates: Map<string, RetryState> = new Map(); // channelId -> retry state for session conflicts
 
   constructor(workingDirectory: string, appDirectory: string) {
     this.workingDirectory = workingDirectory;
@@ -110,18 +118,47 @@ export class TerminalManager {
       // The marker must appear at the START of a line (after newline) to distinguish
       // from the shell echoing the command itself
       if (this.busyChannels.has(channelId)) {
+        // Check for "Session ID is already in use" error and handle with retry
+        if (cleanData.includes('is already in use')) {
+          const retryState = this.retryStates.get(channelId);
+          if (retryState && retryState.retryCount < retryState.maxRetries) {
+            // Session conflict - retry with exponential backoff
+            const delay = Math.pow(2, retryState.retryCount + 1) * 1000; // 2s, 4s, 8s, 16s
+            retryState.retryCount++;
+            console.log(`[Terminal ${channelId}] Session conflict detected, retry ${retryState.retryCount}/${retryState.maxRetries} in ${delay}ms...`);
+            this.busyChannels.delete(channelId);
+            setTimeout(() => {
+              this.retryCommand(channelId);
+            }, delay);
+            return;
+          } else if (retryState) {
+            // Max retries exceeded - fail and continue with queue
+            console.log(`[Terminal ${channelId}] Session conflict: max retries exceeded, generating new session ID`);
+            this.sessionIds.set(channelId, uuidv4());
+            this.busyChannels.delete(channelId);
+            retryState.resolve(false);
+            this.retryStates.delete(channelId);
+            setTimeout(() => {
+              this.processQueue(channelId);
+            }, 1000);
+            return;
+          }
+        }
+
         // Check if marker appears at start of line (real output) vs embedded in command echo
         const lines = cleanData.split('\n');
         for (const line of lines) {
           const trimmedLine = line.trim();
           if (trimmedLine === '___CLAUDE_DONE___') {
-            // Command finished - add small delay to let Claude release session
+            // Command finished - add delay to let Claude release session
             this.busyChannels.delete(channelId);
+            // Clear any retry state on success
+            this.retryStates.delete(channelId);
             console.log(`[Terminal ${channelId}] Claude command finished, waiting for session release...`);
             setTimeout(() => {
               console.log(`[Terminal ${channelId}] Processing queue after delay...`);
               this.processQueue(channelId);
-            }, 1000); // 1 second delay to let Claude release session
+            }, 2000); // 2 second delay to let Claude release session (increased from 1s)
             break;
           }
         }
@@ -165,7 +202,7 @@ export class TerminalManager {
   }
 
   // Actually send input to Claude (internal method)
-  private sendInputNow(terminalId: string, input: string): boolean {
+  private sendInputNow(terminalId: string, input: string, existingRetryState?: RetryState): boolean {
     const terminal = this.terminals.get(terminalId);
     if (!terminal) {
       console.error(`Terminal ${terminalId} not found`);
@@ -198,6 +235,17 @@ export class TerminalManager {
     // Mark channel as busy
     this.busyChannels.add(channelId);
 
+    // Set up retry state for handling session conflicts
+    if (!existingRetryState) {
+      // Create new retry state - will be resolved when command completes or fails
+      this.retryStates.set(channelId, {
+        input,
+        retryCount: 0,
+        maxRetries: 4,
+        resolve: () => {}, // Will be updated by caller if needed
+      });
+    }
+
     // Build the claude command with session-id for per-channel conversation isolation
     // Instructions are in CLAUDE.md which claude -p reads automatically
     // Add sentinel marker to detect when command finishes
@@ -207,6 +255,26 @@ export class TerminalManager {
     terminal.pty.write(claudeCmd + '\r');
     terminal.lastActivity = new Date();
     return true;
+  }
+
+  // Retry a command that failed due to session conflict
+  private retryCommand(channelId: string): void {
+    const retryState = this.retryStates.get(channelId);
+    if (!retryState) {
+      console.error(`[Retry] No retry state for channel ${channelId}`);
+      return;
+    }
+
+    const terminal = this.getTerminalByChannelId(channelId);
+    if (!terminal) {
+      console.error(`[Retry] Terminal not found for channel ${channelId}`);
+      retryState.resolve(false);
+      this.retryStates.delete(channelId);
+      return;
+    }
+
+    console.log(`[Retry] Retrying command for channel ${channelId}`);
+    this.sendInputNow(terminal.id, retryState.input, retryState);
   }
 
   // Process next message in the queue for a channel
