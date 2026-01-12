@@ -62,7 +62,7 @@ export class SlackBot {
       try {
         await this.app.client.chat.postMessage({
           channel: channelId,
-          text: '✅ Claude finished processing.',
+          text: ':double_vertical_bar: Agent turn complete',
         });
       } catch (error) {
         console.error('Failed to send turn complete message:', error);
