@@ -144,12 +144,21 @@ export class SlackBot {
       if (session) {
         // Update session with this user's info and persist
         this.sessionManager.updateSessionUser(trimmedText, userId, channelId);
+
+        // Start Claude Code instance for this DM channel immediately
         await say(
-          `✅ Session configured! You can now:\n` +
-          `1. Create a new channel\n` +
-          `2. Invite me to the channel\n` +
-          `3. I'll start a Claude Code instance for that channel\n\n` +
-          `Working directory: \`${session.workingDirectory}\``
+          `✅ Session configured!\n` +
+          `Working directory: \`${session.workingDirectory}\`\n\n` +
+          `Starting Claude Code instance...`
+        );
+
+        // Spawn instance for DM channel so user can interact immediately
+        await this.spawnClaudeCodeForChannel(channelId, trimmedText, userId, null);
+
+        await say(
+          `🚀 Claude Code is ready! You can start chatting here, or:\n` +
+          `• Create a channel and invite me for a separate workspace\n` +
+          `• Each channel gets its own Claude Code instance`
         );
       } else {
         await say(`❌ Invalid session token \`${trimmedText}\`. Please check and try again.\n\nThe token should be 8 characters like \`A1B2C3D4\` - shown in the terminal when you run \`npm start\`.`);
@@ -324,7 +333,7 @@ export class SlackBot {
     channelId: string,
     sessionToken: string,
     userId: string,
-    client: any
+    client: any | null
   ): Promise<void> {
     const session = this.sessionManager.getSessionByToken(sessionToken);
     if (!session) {
@@ -350,20 +359,25 @@ export class SlackBot {
       // Update channel session with terminal ID
       channelSession.terminalId = terminal.id;
 
-      await client.chat.postMessage({
-        channel: channelId,
-        text: `Claude Code started! Send a message to interact with it.\n` +
-          `Working directory: \`${session.workingDirectory}\``,
-      });
+      // Only post message if client is provided (not from DM where we use say())
+      if (client) {
+        await client.chat.postMessage({
+          channel: channelId,
+          text: `Claude Code started! Send a message to interact with it.\n` +
+            `Working directory: \`${session.workingDirectory}\``,
+        });
+      }
 
       console.log(`Spawned Claude Code for channel ${channelId} on MCP port ${channelSession.mcpPort}`);
     } catch (error) {
       console.error('Failed to spawn Claude Code:', error);
       this.sessionManager.removeChannelSession(channelId);
-      await client.chat.postMessage({
-        channel: channelId,
-        text: `Failed to start Claude Code. Please try again.`,
-      });
+      if (client) {
+        await client.chat.postMessage({
+          channel: channelId,
+          text: `Failed to start Claude Code. Please try again.`,
+        });
+      }
     }
   }
 
@@ -431,6 +445,18 @@ export class SlackBot {
           content: fileContent,
           filename: filename,
           title: filename,
+        });
+        break;
+
+      case 'file_upload':
+        // Handle binary file upload (base64 encoded)
+        const { base64Content, title } = data;
+        const fileBuffer = Buffer.from(base64Content, 'base64');
+        await this.app.client.filesUploadV2({
+          channel_id: channelId,
+          file: fileBuffer,
+          filename: filename,
+          title: title || filename,
         });
         break;
 

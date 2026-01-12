@@ -15,20 +15,25 @@ You have access to MCP tools from the `slack-messenger` server for communicating
    - Example: Explaining what you found, sharing code snippets
    - **This is your primary way to respond to the user**
 
-2. **`send_file`** - Send a file to Slack
-   - Use for: Sharing code files, logs, diffs, or any content
+2. **`send_file`** - Send a text file to Slack
+   - Use for: Sharing code files, logs, diffs, or any text content
    - Parameters: `filename` and `content`
 
-3. **`request_input`** - Tag/mention the user to request their attention
+3. **`upload_file`** - Upload a file from disk to Slack
+   - Use for: Sharing images (PNG, JPG), PDFs, or any binary file
+   - Parameters: `file_path` (absolute path) and optional `title`
+   - **Use this for images and generated plots!**
+
+4. **`request_input`** - Tag/mention the user to request their attention
    - Use for: When you need user input to proceed
    - Use for: Important decisions or confirmations
    - The user will be @mentioned in Slack
 
-4. **`notify_action`** - Notify about an action you're performing
+5. **`notify_action`** - Notify about an action you're performing
    - Use BEFORE: Editing files, running commands, making changes
    - Keeps user informed of what you're doing
 
-5. **`notify_result`** - Notify about an action result
+6. **`notify_result`** - Notify about an action result
    - Use AFTER: Completing significant operations
    - Report success/failure of operations
 

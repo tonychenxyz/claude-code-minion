@@ -4,6 +4,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import * as http from 'http';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Get configuration from environment
 const ORCHESTRATOR_URL = process.env.ORCHESTRATOR_URL || 'http://localhost:3000';
@@ -134,13 +136,13 @@ server.tool(
   }
 );
 
-// Tool: Send file to Slack
+// Tool: Send file to Slack (text content)
 server.tool(
   'send_file',
-  'Send a file to the user in Slack. Use this to share code files, logs, or other content.',
+  'Send a text file to the user in Slack. Use this to share code files, logs, or other text content.',
   {
     filename: z.string().describe('The filename to display in Slack'),
-    content: z.string().describe('The file content'),
+    content: z.string().describe('The file content (text only)'),
   },
   async ({ filename, content }) => {
     try {
@@ -155,6 +157,47 @@ server.tool(
     } catch (error) {
       return {
         content: [{ type: 'text', text: `Failed to send file: ${error}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// Tool: Upload file from disk to Slack (supports binary files like images)
+server.tool(
+  'upload_file',
+  'Upload a file from disk to Slack. Use this to share images (PNG, JPG), PDFs, or any file from the filesystem. Supports binary files.',
+  {
+    file_path: z.string().describe('The absolute path to the file to upload'),
+    title: z.string().optional().describe('Optional title for the file (defaults to filename)'),
+  },
+  async ({ file_path, title }) => {
+    try {
+      // Check if file exists
+      if (!fs.existsSync(file_path)) {
+        return {
+          content: [{ type: 'text', text: `File not found: ${file_path}` }],
+          isError: true,
+        };
+      }
+
+      // Read file as base64
+      const fileBuffer = fs.readFileSync(file_path);
+      const base64Content = fileBuffer.toString('base64');
+      const filename = path.basename(file_path);
+
+      await sendToOrchestrator({
+        type: 'file_upload',
+        filename,
+        title: title || filename,
+        base64Content,
+      });
+      return {
+        content: [{ type: 'text', text: `File "${filename}" uploaded successfully` }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: 'text', text: `Failed to upload file: ${error}` }],
         isError: true,
       };
     }
