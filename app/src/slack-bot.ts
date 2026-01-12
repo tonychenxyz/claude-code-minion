@@ -502,22 +502,34 @@ export class SlackBot {
 
     const token = this.app.client.token;
 
-    // Helper to download from a URL
-    const downloadFromUrl = (downloadUrl: string, includeAuth: boolean): Promise<string | null> => {
+    console.log(`Downloading file from: ${url.substring(0, 80)}...`);
+
+    // Helper to download from a URL - always include auth for Slack URLs
+    const downloadFromUrl = (downloadUrl: string): Promise<string | null> => {
       return new Promise((resolve) => {
+        // Parse URL to determine if it's a Slack URL (needs auth) or CDN URL (signed, no auth needed)
+        const isSlackUrl = downloadUrl.includes('slack.com') || downloadUrl.includes('slack-files.com');
         const headers: Record<string, string> = {};
-        if (includeAuth) {
+
+        if (isSlackUrl) {
           headers['Authorization'] = `Bearer ${token}`;
         }
 
+        console.log(`Fetching: ${downloadUrl.substring(0, 60)}... (auth: ${isSlackUrl})`);
+
         const request = https.get(downloadUrl, { headers }, (response) => {
-          // Handle redirects - don't include auth header for redirect URLs (they're signed)
+          // Handle redirects
           if (response.statusCode === 302 || response.statusCode === 301) {
             const redirectUrl = response.headers.location;
             if (redirectUrl) {
-              console.log(`Following redirect to: ${redirectUrl.substring(0, 50)}...`);
-              // Redirect URLs are signed and don't need auth
-              downloadFromUrl(redirectUrl, false).then(resolve);
+              console.log(`Redirect -> ${redirectUrl.substring(0, 60)}...`);
+              // Check if redirect is to a login page (error case)
+              if (redirectUrl.includes('?redir=') || redirectUrl.includes('/signin')) {
+                console.error('ERROR: Redirect to login page - authentication failed');
+                resolve(null);
+                return;
+              }
+              downloadFromUrl(redirectUrl).then(resolve);
             } else {
               console.error('Redirect without location header');
               resolve(null);
@@ -527,7 +539,6 @@ export class SlackBot {
 
           if (response.statusCode !== 200) {
             console.error(`Failed to download file: HTTP ${response.statusCode}`);
-            // Log response body for debugging
             let body = '';
             response.on('data', (chunk) => body += chunk);
             response.on('end', () => {
@@ -537,13 +548,24 @@ export class SlackBot {
             return;
           }
 
+          // Check content type - if HTML, something went wrong
+          const contentType = response.headers['content-type'] || '';
+          if (contentType.includes('text/html')) {
+            console.error('ERROR: Received HTML instead of file - likely auth issue');
+            let body = '';
+            response.on('data', (chunk) => body += chunk);
+            response.on('end', () => {
+              console.error('HTML content:', body.substring(0, 300));
+              resolve(null);
+            });
+            return;
+          }
+
           // Collect all data chunks
           const chunks: Buffer[] = [];
-          let totalSize = 0;
 
           response.on('data', (chunk: Buffer) => {
             chunks.push(chunk);
-            totalSize += chunk.length;
           });
 
           response.on('end', () => {
@@ -572,8 +594,7 @@ export class SlackBot {
       });
     };
 
-    // Start download with auth header for initial Slack URL
-    return downloadFromUrl(url, true);
+    return downloadFromUrl(url);
   }
 
   // Process files attached to a message
