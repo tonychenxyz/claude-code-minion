@@ -54,6 +54,20 @@ export class SlackBot {
     });
 
     this.setupEventHandlers();
+    this.setupTurnCompleteCallback();
+  }
+
+  private setupTurnCompleteCallback(): void {
+    this.terminalManager.setOnTurnCompleteCallback(async (channelId: string) => {
+      try {
+        await this.app.client.chat.postMessage({
+          channel: channelId,
+          text: '✅ Claude finished processing.',
+        });
+      } catch (error) {
+        console.error('Failed to send turn complete message:', error);
+      }
+    });
   }
 
   private setupEventHandlers(): void {
@@ -214,10 +228,12 @@ export class SlackBot {
       const success = this.terminalManager.sendInterrupt(updatedSession.terminalId);
       // Clear busy state so next message can be processed
       this.terminalManager.clearBusyState(channelId);
+      // Clear message queue on interrupt
+      this.messageQueues.set(channelId, []);
       if (success) {
         await client.chat.postMessage({
           channel: channelId,
-          text: `⏹️ Interrupted Claude Code (sent Ctrl+C)`,
+          text: `⏹️ Interrupted Claude Code (sent Ctrl+C). Message queue cleared.`,
         });
       } else {
         await client.chat.postMessage({
@@ -495,8 +511,8 @@ export class SlackBot {
   }
 
   private setupSlashCommands(): void {
-    // /minion-reset - Reset conversation (start fresh)
-    this.app.command('/minion-reset', async ({ command, ack, respond }) => {
+    // /reset - Reset conversation (start fresh)
+    this.app.command('/reset', async ({ command, ack, respond }) => {
       await ack();
 
       const channelId = command.channel_id;
@@ -519,8 +535,8 @@ export class SlackBot {
       });
     });
 
-    // /minion-interrupt - Interrupt current Claude operation
-    this.app.command('/minion-interrupt', async ({ command, ack, respond }) => {
+    // /interrupt - Interrupt current Claude operation
+    this.app.command('/interrupt', async ({ command, ack, respond }) => {
       await ack();
 
       const channelId = command.channel_id;
@@ -536,11 +552,13 @@ export class SlackBot {
 
       const success = this.terminalManager.sendInterrupt(channelSession.terminalId);
       this.terminalManager.clearBusyState(channelId);
+      // Clear message queue on interrupt
+      this.messageQueues.set(channelId, []);
 
       if (success) {
         await respond({
           response_type: 'in_channel',
-          text: '⏹️ Interrupted Claude Code (sent Ctrl+C)',
+          text: '⏹️ Interrupted Claude Code (sent Ctrl+C). Message queue cleared.',
         });
       } else {
         await respond({
@@ -550,8 +568,8 @@ export class SlackBot {
       }
     });
 
-    // /minion-compact - Trigger Claude Code's /compact command
-    this.app.command('/minion-compact', async ({ command, ack, respond }) => {
+    // /compact - Trigger Claude Code's /compact command
+    this.app.command('/compact', async ({ command, ack, respond }) => {
       await ack();
 
       const channelId = command.channel_id;
@@ -580,8 +598,8 @@ export class SlackBot {
       }
     });
 
-    // /minion-debug - Show terminal output
-    this.app.command('/minion-debug', async ({ command, ack, respond }) => {
+    // /debug - Show terminal output
+    this.app.command('/debug', async ({ command, ack, respond }) => {
       await ack();
 
       const channelId = command.channel_id;

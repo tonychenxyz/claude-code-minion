@@ -29,10 +29,16 @@ export class TerminalManager {
   private busyChannels: Set<string> = new Set(); // channels with running claude commands
   private messageQueues: Map<string, QueuedMessage[]> = new Map(); // channelId -> queued messages
   private awaitingSessionId: Set<string> = new Set(); // channels waiting to capture session_id from JSON output
+  private onTurnCompleteCallback: ((channelId: string) => void) | null = null;
 
   constructor(workingDirectory: string, appDirectory: string) {
     this.workingDirectory = workingDirectory;
     this.appDirectory = appDirectory;
+  }
+
+  // Set callback for when Claude's turn completes
+  setOnTurnCompleteCallback(callback: (channelId: string) => void): void {
+    this.onTurnCompleteCallback = callback;
   }
 
   async spawnClaudeCode(channelId: string, mcpPort: number): Promise<TerminalInstance> {
@@ -130,6 +136,10 @@ export class TerminalManager {
             // Command finished
             this.busyChannels.delete(channelId);
             console.log(`[Terminal ${channelId}] Claude command finished`);
+            // Notify callback that turn is complete
+            if (this.onTurnCompleteCallback) {
+              this.onTurnCompleteCallback(channelId);
+            }
             // Process next queued message immediately
             this.processQueue(channelId);
             break;

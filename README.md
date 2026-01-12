@@ -184,10 +184,10 @@ Use these slash commands directly from Slack's command bar:
 
 | Command | Description |
 |---------|-------------|
-| `/minion-interrupt` | Interrupt Claude (sends Ctrl+C) |
-| `/minion-reset` | Start a new conversation |
-| `/minion-compact` | Compact Claude's context (run `/compact`) |
-| `/minion-debug` | Show terminal output for debugging |
+| `/interrupt` | Interrupt Claude (sends Ctrl+C) |
+| `/reset` | Start a new conversation |
+| `/compact` | Compact Claude's context (run `/compact`) |
+| `/debug` | Show terminal output for debugging |
 
 ### Text Commands
 

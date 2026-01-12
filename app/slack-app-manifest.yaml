@@ -12,19 +12,19 @@ features:
     messages_tab_enabled: true
     messages_tab_read_only_enabled: false
   slash_commands:
-    - command: /minion-reset
+    - command: /reset
       description: Reset Claude Code conversation (start fresh)
       usage_hint: ""
       should_escape: false
-    - command: /minion-interrupt
+    - command: /interrupt
       description: Interrupt current Claude Code operation (Ctrl+C)
       usage_hint: ""
       should_escape: false
-    - command: /minion-compact
+    - command: /compact
       description: Compact Claude Code's context (run /compact)
       usage_hint: ""
       should_escape: false
-    - command: /minion-debug
+    - command: /debug
       description: Show terminal output for debugging
       usage_hint: ""
       should_escape: false
