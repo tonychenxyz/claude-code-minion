@@ -55,9 +55,9 @@ const server = new McpServer({
 // Tool: Send regular message (no mention)
 server.tool(
   'send_regular_message',
-  'Send a message to the user in Slack WITHOUT mentioning them. Use this frequently to log your thoughts, actions, and progress.',
+  'Send a message to the user in Slack WITHOUT mentioning them. Use this frequently to log your thoughts, actions, and progress. IMPORTANT: Use Slack formatting (not Markdown): *bold*, _italic_, ~strike~, `code`, ```code block```',
   {
-    message: z.string().describe('The message to send'),
+    message: z.string().describe('The message to send (use Slack formatting: *bold*, _italic_, `code`)'),
   },
   async ({ message }) => {
     try {
@@ -80,9 +80,9 @@ server.tool(
 // Tool: Send mention message (mentions the user)
 server.tool(
   'send_mention_message',
-  'Send a message that @mentions the user. Use this when: (1) you have FINISHED the request, or (2) you need user input to proceed.',
+  'Send a message that @mentions the user. Use this when: (1) you have FINISHED the request, or (2) you need user input to proceed. IMPORTANT: Use Slack formatting (not Markdown): *bold*, _italic_, ~strike~, `code`, ```code block```',
   {
-    message: z.string().describe('The message to send with @mention'),
+    message: z.string().describe('The message to send with @mention (use Slack formatting: *bold*, _italic_, `code`)'),
   },
   async ({ message }) => {
     try {

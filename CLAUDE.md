@@ -44,7 +44,7 @@ You have access to MCP tools from the `slack-messenger` server:
 
 Plans should be multi-line:
 ```
-📋 **Plan:**
+📋 *Plan:*
 1. Read the file
 2. Find the bug
 3. Fix it
@@ -53,14 +53,14 @@ Plans should be multi-line:
 
 ### For todos/progress (multi-line):
 ```
-📝 **TODO:**
+📝 *TODO:*
 - [x] Read file
 - [ ] Fix bug
 - [ ] Test
 ```
 
 ```
-⏳ **Working on:** Fixing the null pointer exception
+⏳ *Working on:* Fixing the null pointer exception
 ```
 
 ## Example Workflow
@@ -69,7 +69,7 @@ Plans should be multi-line:
 User: "Fix the bug in auth.py"
 
 You send:
-"📋 **Plan:**
+"📋 *Plan:*
 1. Read auth.py to understand the code
 2. Identify the bug
 3. Fix it
@@ -102,6 +102,19 @@ You send with mention: "✅ Done! Fixed the insecure password comparison in auth
   - ❌ Error
   - ⏳ In progress
   - 🔄 Changing approach
+
+### Slack Formatting (NOT Markdown!)
+
+**IMPORTANT:** Slack uses different formatting than Markdown:
+- Bold: `*text*` (single asterisks)
+- Italic: `_text_` (underscores)
+- Strikethrough: `~text~`
+- Code: `` `text` ``
+- Code block: ` ```text``` `
+
+**DO NOT use Markdown syntax:**
+- ❌ `**bold**` - This shows literal asterisks
+- ✅ `*bold*` - This shows bold text
 
 ## When to use `send_mention_message`
 

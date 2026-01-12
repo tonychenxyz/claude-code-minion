@@ -7,25 +7,6 @@ import * as https from 'https';
 import * as fs from 'fs';
 import * as path from 'path';
 
-/**
- * Convert standard Markdown formatting to Slack's mrkdwn format
- * - Markdown bold: **text** → Slack bold: *text*
- * - Markdown italic: *text* → Slack italic: _text_
- * - Markdown italic: _text_ → Slack italic: _text_ (no change needed)
- */
-function markdownToSlack(text: string): string {
-  // First, convert **bold** to a placeholder to avoid confusion with single *
-  let result = text.replace(/\*\*(.+?)\*\*/g, '%%BOLD%%$1%%ENDBOLD%%');
-
-  // Convert single *italic* to _italic_ (Slack format)
-  result = result.replace(/\*(.+?)\*/g, '_$1_');
-
-  // Convert bold placeholder back to Slack bold format *text*
-  result = result.replace(/%%BOLD%%(.+?)%%ENDBOLD%%/g, '*$1*');
-
-  return result;
-}
-
 interface PendingMessage {
   user: string;
   text: string;
@@ -452,7 +433,7 @@ export class SlackBot {
       case 'markdown':
         await this.app.client.chat.postMessage({
           channel: channelId,
-          text: markdownToSlack(content),
+          text: content,
           mrkdwn: true,
         });
         break;
@@ -482,7 +463,7 @@ export class SlackBot {
         const mention = userId ? `<@${userId}>` : '';
         await this.app.client.chat.postMessage({
           channel: channelId,
-          text: `${mention} ${markdownToSlack(mentionText || content)}`,
+          text: `${mention} ${mentionText || content}`,
           mrkdwn: true,
         });
         break;
@@ -491,7 +472,7 @@ export class SlackBot {
         // Notification of action being taken
         await this.app.client.chat.postMessage({
           channel: channelId,
-          text: `🔄 ${markdownToSlack(content)}`,
+          text: `🔄 ${content}`,
           mrkdwn: true,
         });
         break;
@@ -500,7 +481,7 @@ export class SlackBot {
         // Notification of action result
         await this.app.client.chat.postMessage({
           channel: channelId,
-          text: `✅ ${markdownToSlack(content)}`,
+          text: `✅ ${content}`,
           mrkdwn: true,
         });
         break;
