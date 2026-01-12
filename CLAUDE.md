@@ -158,47 +158,60 @@ Unless the user explicitly asks you to run something in foreground, **ALWAYS**:
 ### 1. Start command in background
 ```bash
 command > /tmp/output.log 2>&1 &
-PID=$!
+echo $!  # Save this PID
 ```
 
 ### 2. Report that you started
-Send: "🔧 Running: `[command]` (PID: $PID)"
+Send: "🔧 Running: `[command]`"
 
-### 3. Poll with sleep and report progress
+### 3. Sleep, check, report, repeat
+Each iteration is a SEPARATE action:
+
+**Step A - Sleep:**
 ```bash
-while kill -0 $PID 2>/dev/null; do
-  sleep 5
-  tail -20 /tmp/output.log
-done
+sleep 5
 ```
 
-After each check, send progress:
-- "⏳ Still running... [summary of recent output]"
-- "⏳ Progress: 50% complete..."
-
-### 4. Report completion
+**Step B - Check if still running:**
 ```bash
-wait $PID
-EXIT_CODE=$?
+kill -0 <PID> 2>/dev/null && echo "running" || echo "done"
 ```
-Send: "✅ Command finished (exit code: $EXIT_CODE)"
+
+**Step C - Check output:**
+```bash
+tail -20 /tmp/output.log
+```
+
+**Step D - Send progress message:**
+Send: "⏳ [summary of what you saw in output]"
+
+**Step E - If still running, go back to Step A with new sleep interval**
+
+### 4. When done, report completion
+Send: "✅ Command finished - [summary of result]"
 
 ### Example workflow:
 ```
-You send: "🔧 Running: `npm install`"
-[Start in background, save PID]
-[Sleep 5 seconds, check output]
-You send: "⏳ Installing dependencies... added 50 packages so far"
-[Sleep 5 seconds, check output]
-You send: "⏳ Still installing... resolving peer dependencies"
-[Command finishes]
-You send: "✅ npm install complete - added 150 packages"
+1. Run: `npm install > /tmp/output.log 2>&1 &` → get PID 12345
+2. Send: "🔧 Running: `npm install`"
+3. Run: `sleep 5`
+4. Run: `kill -0 12345 && echo running || echo done` → "running"
+5. Run: `tail -20 /tmp/output.log` → see package progress
+6. Send: "⏳ Installing dependencies... added 50 packages so far"
+7. Run: `sleep 5`
+8. Run: `kill -0 12345 && echo running || echo done` → "running"
+9. Run: `tail -20 /tmp/output.log` → see more progress
+10. Send: "⏳ Still installing... resolving peer dependencies"
+11. Run: `sleep 5`
+12. Run: `kill -0 12345 && echo running || echo done` → "done"
+13. Run: `tail -20 /tmp/output.log` → see final output
+14. Send: "✅ npm install complete - added 150 packages"
 ```
 
-### Why background + polling?
+### Why this approach?
 - User sees real-time progress instead of silence
-- You can report what's happening as it happens
-- Long commands don't block you from communicating
+- Each check is explicit - you decide when to check next
+- You can adjust sleep interval based on expected duration
 
 ## File Attachments
 
