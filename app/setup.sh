@@ -46,6 +46,12 @@ echo ""
 echo "Building..."
 npm run build
 
+# Create projects directory if it doesn't exist
+if [ ! -d "../projects" ]; then
+    mkdir -p ../projects
+    echo "✓ Created ../projects directory"
+fi
+
 # Check for .env file
 if [ ! -f ".env" ]; then
     echo ""
@@ -56,11 +62,12 @@ if [ ! -f ".env" ]; then
     echo "No .env file found. Creating from template..."
     cp .env.example .env
     echo ""
-    echo "Please edit .env and add your Slack tokens:"
+    echo "Please edit app/.env and add your Slack tokens:"
     echo "  - SLACK_BOT_TOKEN (starts with xoxb-)"
     echo "  - SLACK_APP_TOKEN (starts with xapp-)"
+    echo "  - CLAUDE_CODE_OAUTH_TOKEN (from 'claude setup-token')"
     echo ""
-    echo "Get these from your Slack App settings:"
+    echo "Get Slack tokens from your Slack App settings:"
     echo "  https://api.slack.com/apps"
     echo ""
     exit 0
@@ -72,5 +79,7 @@ echo "  SETUP COMPLETE!"
 echo "═══════════════════════════════════════════════════════════"
 echo ""
 echo "To start the bot, run:"
-echo "  npm start"
+echo "  cd app && npm start"
+echo ""
+echo "Working directory: ../projects"
 echo ""

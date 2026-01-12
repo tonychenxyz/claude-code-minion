@@ -34,6 +34,31 @@ Talk to Claude Code running on a remote server through Slack. The server initiat
   - Notify about actions and results
 - **Session Tokens**: Secure pairing between Slack users and server sessions
 
+## Project Structure
+
+```
+.
+├── app/                      # Bot application
+│   ├── src/                  # TypeScript source
+│   │   ├── index.ts          # Main entry point
+│   │   ├── slack-bot.ts      # Slack bot (Socket Mode)
+│   │   ├── session-manager.ts
+│   │   ├── terminal-manager.ts
+│   │   ├── mcp-server.ts     # MCP server for Claude Code
+│   │   └── types.ts
+│   ├── dist/                 # Compiled JavaScript
+│   ├── .env                  # Configuration (create from .env.example)
+│   ├── .env.example
+│   ├── package.json
+│   └── setup.sh
+├── projects/                 # Working directory for Claude Code
+│   ├── .claude/              # Claude settings
+│   │   └── settings.json
+│   └── CLAUDE.md             # Instructions for Claude Code
+├── slack-app-manifest.yaml   # Slack app manifest
+└── README.md
+```
+
 ## Quick Start
 
 ### 1. Create Slack App
@@ -77,18 +102,11 @@ export CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-your-full-token"
 # Add to your shell profile for persistence
 echo 'export CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-your-full-token"' >> ~/.bashrc
 source ~/.bashrc
-
-# Also add to .env for the bot
-echo 'CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-your-full-token' >> .env
 ```
 
 **Option B: Anthropic API Key**
 
 ```bash
-# Add to .env
-echo 'ANTHROPIC_API_KEY=sk-ant-your-api-key' >> .env
-
-# Or export directly
 export ANTHROPIC_API_KEY="sk-ant-your-api-key"
 ```
 
@@ -102,16 +120,16 @@ claude -p "hi"
 ### 4. Setup Server
 
 ```bash
-# Clone the repo to your working directory
-git clone <this-repo> my-project
-cd my-project
+# Clone the repo
+git clone <this-repo> claude-code-minion
+cd claude-code-minion/app
 
 # Run setup
 ./setup.sh
 
-# Configure tokens
+# Configure tokens in app/.env
 nano .env
-# Add your SLACK_BOT_TOKEN and SLACK_APP_TOKEN
+# Add: SLACK_BOT_TOKEN, SLACK_APP_TOKEN, CLAUDE_CODE_OAUTH_TOKEN
 
 # Start the bot
 npm start
@@ -127,7 +145,7 @@ npm start
 
 ## Configuration
 
-Create a `.env` file:
+Create `app/.env` file:
 
 ```env
 # Required - Slack tokens
@@ -141,14 +159,14 @@ CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-your-token  # From `claude setup-token`
 
 # Optional
 ORCHESTRATOR_PORT=3000
-WORKING_DIRECTORY=/path/to/your/project
+WORKING_DIRECTORY=/path/to/your/projects  # Default: ../projects
 ```
 
 ## Usage
 
 ### Starting a Session
 
-1. Run `npm start` on your server
+1. Run `cd app && npm start` on your server
 2. Note the session token displayed
 3. DM the Slack bot with the token
 4. You're connected!
@@ -169,22 +187,6 @@ WORKING_DIRECTORY=/path/to/your/project
 | `!debug` / `!output` | Show terminal output |
 | `!help` | Show available commands |
 
-### Multiple Projects
-
-You can run multiple instances:
-
-```bash
-# Terminal 1 - Project A
-cd /path/to/project-a
-npm start
-
-# Terminal 2 - Project B
-cd /path/to/project-b
-npm start
-```
-
-Each will show a different session token. Use different Slack channels for each.
-
 ## MCP Tools
 
 Claude Code in each session has access to these MCP tools for communicating via Slack:
@@ -197,23 +199,6 @@ Claude Code in each session has access to these MCP tools for communicating via 
 | `request_input` | @mention user for input |
 | `notify_action` | Notify about action being taken |
 | `notify_result` | Notify about action result |
-
-## Project Structure
-
-```
-.
-├── src/
-│   ├── index.ts          # Main entry point
-│   ├── slack-bot.ts      # Slack bot (Socket Mode)
-│   ├── session-manager.ts # Session token management
-│   ├── terminal-manager.ts # PTY terminal management
-│   ├── mcp-server.ts     # MCP server for Claude Code
-│   └── types.ts          # TypeScript types
-├── slack-app-manifest.yaml # Slack app manifest
-├── CLAUDE.md             # Instructions for Claude Code
-├── setup.sh              # Setup script
-└── package.json
-```
 
 ## Troubleshooting
 
@@ -234,7 +219,7 @@ export CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-full-token-here"
 
 ### Bot not responding
 
-- Check that both Slack tokens are correct in `.env`
+- Check that both Slack tokens are correct in `app/.env`
 - Ensure the bot is invited to the channel
 - Check console for error messages
 
@@ -242,28 +227,26 @@ export CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-full-token-here"
 
 - Verify `claude` CLI is installed: `claude --version`
 - Verify authentication: `claude -p "hi"`
-- Check that the working directory exists
+- Check that the working directory exists (`projects/`)
 - Look for errors in the terminal output
 
 ### Messages not being sent to Slack
 
 - The orchestrator server must be running (port 3000 by default)
-- Check MCP configuration in `.claude-minion/<channel-id>/mcp-config.json`
+- Check MCP configuration in `projects/.claude-minion/<channel-id>/mcp-config.json`
 
 ## Development
 
 ```bash
+cd app
+
 # Install dependencies
 npm install
 
-# Run in development mode
-npm run dev
-
-# Build for production
+# Build
 npm run build
-npm run mcp:build
 
-# Start production
+# Start
 npm start
 ```
 

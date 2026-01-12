@@ -18,11 +18,13 @@ export class TerminalManager {
   private terminals: Map<string, TerminalInstance> = new Map();
   private outputBuffers: Map<string, string[]> = new Map();
   private workingDirectory: string;
+  private appDirectory: string;
   private mcpConfigs: Map<string, string> = new Map(); // channelId -> mcpConfigPath
   private sessionIds: Map<string, string> = new Map(); // channelId -> claude session UUID
 
-  constructor(workingDirectory: string) {
+  constructor(workingDirectory: string, appDirectory: string) {
     this.workingDirectory = workingDirectory;
+    this.appDirectory = appDirectory;
   }
 
   async spawnClaudeCode(channelId: string, mcpPort: number): Promise<TerminalInstance> {
@@ -37,7 +39,7 @@ export class TerminalManager {
       mcpServers: {
         'slack-messenger': {
           command: 'node',
-          args: [path.join(this.workingDirectory, 'dist', 'mcp-server.js')],
+          args: [path.join(this.appDirectory, 'dist', 'mcp-server.js')],
           env: {
             MCP_PORT: mcpPort.toString(),
             CHANNEL_ID: channelId,

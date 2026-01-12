@@ -10,16 +10,20 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// App directory is where this script lives (app/dist -> app/)
+const appDirectory = path.resolve(__dirname, '..');
+
 interface Config {
   slackBotToken: string;
   slackAppToken: string;
   orchestratorPort: number;
   workingDirectory: string;
+  appDirectory: string;
 }
 
 function loadConfig(): Config {
-  // Try to load from .env file or environment variables
-  const envPath = path.join(process.cwd(), '.env');
+  // Try to load from .env file in app directory
+  const envPath = path.join(appDirectory, '.env');
   if (fs.existsSync(envPath)) {
     const envContent = fs.readFileSync(envPath, 'utf-8');
     for (const line of envContent.split('\n')) {
@@ -34,17 +38,19 @@ function loadConfig(): Config {
   const slackBotToken = process.env.SLACK_BOT_TOKEN;
   const slackAppToken = process.env.SLACK_APP_TOKEN;
   const orchestratorPort = parseInt(process.env.ORCHESTRATOR_PORT || '3000', 10);
-  const workingDirectory = process.env.WORKING_DIRECTORY || process.cwd();
+  // Default working directory is ../projects relative to app/
+  const defaultWorkingDir = path.resolve(appDirectory, '..', 'projects');
+  const workingDirectory = process.env.WORKING_DIRECTORY || defaultWorkingDir;
 
   if (!slackBotToken) {
     console.error('Error: SLACK_BOT_TOKEN is required');
-    console.error('Set it in .env file or as environment variable');
+    console.error('Set it in app/.env file or as environment variable');
     process.exit(1);
   }
 
   if (!slackAppToken) {
     console.error('Error: SLACK_APP_TOKEN is required');
-    console.error('Set it in .env file or as environment variable');
+    console.error('Set it in app/.env file or as environment variable');
     process.exit(1);
   }
 
@@ -53,6 +59,7 @@ function loadConfig(): Config {
     slackAppToken,
     orchestratorPort,
     workingDirectory,
+    appDirectory,
   };
 }
 
@@ -63,12 +70,19 @@ async function main() {
 
   const config = loadConfig();
 
+  console.log(`App directory: ${config.appDirectory}`);
   console.log(`Working directory: ${config.workingDirectory}`);
   console.log(`Orchestrator port: ${config.orchestratorPort}`);
 
+  // Ensure working directory exists
+  if (!fs.existsSync(config.workingDirectory)) {
+    fs.mkdirSync(config.workingDirectory, { recursive: true });
+    console.log(`Created working directory: ${config.workingDirectory}`);
+  }
+
   // Initialize managers
   const sessionManager = new SessionManager(config.workingDirectory);
-  const terminalManager = new TerminalManager(config.workingDirectory);
+  const terminalManager = new TerminalManager(config.workingDirectory, config.appDirectory);
 
   // Create a session token on startup
   const session = sessionManager.createSession(
