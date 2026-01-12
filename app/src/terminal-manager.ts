@@ -280,6 +280,39 @@ export class TerminalManager {
     return true;
   }
 
+  // Send /compact command to Claude Code
+  sendCompactCommand(terminalId: string): boolean {
+    const terminal = this.terminals.get(terminalId);
+    if (!terminal) {
+      console.error(`Terminal ${terminalId} not found`);
+      return false;
+    }
+
+    const channelId = terminal.channelId;
+    const mcpConfigPath = this.mcpConfigs.get(channelId);
+    if (!mcpConfigPath) {
+      console.error(`MCP config not found for channel ${channelId}`);
+      return false;
+    }
+
+    const existingSessionId = this.sessionIds.get(channelId);
+    if (!existingSessionId) {
+      console.error(`No session ID found for channel ${channelId} - cannot send /compact`);
+      return false;
+    }
+
+    // Mark channel as busy
+    this.busyChannels.add(channelId);
+
+    // Send /compact command to Claude Code with resume
+    const claudeCmd = `claude -p "/compact" --resume "${existingSessionId}" --mcp-config "${mcpConfigPath}" ; echo "___CLAUDE_DONE___"`;
+    console.log(`[Sending /compact] claude -p "/compact" --resume "${existingSessionId.substring(0, 8)}..."`);
+
+    terminal.pty.write(claudeCmd + '\r');
+    terminal.lastActivity = new Date();
+    return true;
+  }
+
   getOutput(terminalId: string, lines: number = 50): string[] {
     const buffer = this.outputBuffers.get(terminalId);
     if (!buffer) {

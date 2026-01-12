@@ -57,6 +57,9 @@ export class SlackBot {
   }
 
   private setupEventHandlers(): void {
+    // Handle slash commands
+    this.setupSlashCommands();
+
     // Handle DMs - session token configuration
     this.app.message(async ({ message, say, client }) => {
       // Ignore bot messages
@@ -489,6 +492,93 @@ export class SlackBot {
       default:
         console.log('Unknown MCP message type:', type);
     }
+  }
+
+  private setupSlashCommands(): void {
+    // /minion-reset - Reset conversation (start fresh)
+    this.app.command('/minion-reset', async ({ command, ack, respond }) => {
+      await ack();
+
+      const channelId = command.channel_id;
+      const channelSession = this.sessionManager.getChannelSession(channelId);
+
+      if (!channelSession) {
+        await respond({
+          response_type: 'ephemeral',
+          text: '❌ No Claude Code session in this channel. Send a message first to start one.',
+        });
+        return;
+      }
+
+      this.terminalManager.resetConversation(channelId);
+      this.messageQueues.set(channelId, []);
+
+      await respond({
+        response_type: 'in_channel',
+        text: '🔄 Conversation reset. Next message will start a new Claude Code session.',
+      });
+    });
+
+    // /minion-interrupt - Interrupt current Claude operation
+    this.app.command('/minion-interrupt', async ({ command, ack, respond }) => {
+      await ack();
+
+      const channelId = command.channel_id;
+      const channelSession = this.sessionManager.getChannelSession(channelId);
+
+      if (!channelSession) {
+        await respond({
+          response_type: 'ephemeral',
+          text: '❌ No Claude Code session in this channel.',
+        });
+        return;
+      }
+
+      const success = this.terminalManager.sendInterrupt(channelSession.terminalId);
+      this.terminalManager.clearBusyState(channelId);
+
+      if (success) {
+        await respond({
+          response_type: 'in_channel',
+          text: '⏹️ Interrupted Claude Code (sent Ctrl+C)',
+        });
+      } else {
+        await respond({
+          response_type: 'ephemeral',
+          text: '❌ Failed to interrupt - terminal not found',
+        });
+      }
+    });
+
+    // /minion-compact - Trigger Claude Code's /compact command
+    this.app.command('/minion-compact', async ({ command, ack, respond }) => {
+      await ack();
+
+      const channelId = command.channel_id;
+      const channelSession = this.sessionManager.getChannelSession(channelId);
+
+      if (!channelSession) {
+        await respond({
+          response_type: 'ephemeral',
+          text: '❌ No Claude Code session in this channel.',
+        });
+        return;
+      }
+
+      const success = this.terminalManager.sendCompactCommand(channelSession.terminalId);
+
+      if (success) {
+        await respond({
+          response_type: 'in_channel',
+          text: '📦 Sending /compact to Claude Code...',
+        });
+      } else {
+        await respond({
+          response_type: 'ephemeral',
+          text: '❌ Failed to send compact command - terminal not found',
+        });
+      }
+    });
   }
 
   async start(): Promise<void> {
