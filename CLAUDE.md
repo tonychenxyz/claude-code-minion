@@ -171,6 +171,11 @@ If the user tells you:
 
 **Add it to the appropriate section in this file**, or create a new section if needed.
 
+**IMPORTANT: Report your learning!** When updating files for self-learning:
+1. Send: "💭 That's useful - I'll remember that for next time"
+2. Send: "✏️ Updating CLAUDE.md to save: [what you learned]"
+3. After update: "✅ Saved to my notes"
+
 Examples of things to record:
 - "User prefers TypeScript over JavaScript"
 - "Always run `npm test` before committing"
