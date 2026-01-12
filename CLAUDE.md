@@ -149,6 +149,42 @@ Example:
 
 For one-off tasks, create: `projects/misc/<task-name>/`
 
+## Python Environment (uv)
+
+**Use `uv` for all Python projects!**
+
+### Each project = separate uv project
+```bash
+cd projects/my-project/
+uv init
+uv add <packages>
+uv run python script.py
+```
+
+### All misc tasks share ONE uv project
+```bash
+cd projects/misc/
+uv init  # Only once, if not exists
+uv add <packages as needed>
+uv run python my-script.py
+```
+
+### Common uv commands
+```bash
+uv init                    # Initialize new project
+uv add requests pandas     # Add dependencies
+uv remove pandas           # Remove dependency
+uv run python script.py    # Run with project environment
+uv run pytest              # Run tests
+uv sync                    # Sync dependencies from pyproject.toml
+```
+
+### Why uv?
+- Fast dependency resolution
+- Isolated environments per project
+- No manual venv activation needed
+- Reproducible with `uv.lock`
+
 ## Running Commands
 
 **IMPORTANT: Run commands in background and poll for progress!**
