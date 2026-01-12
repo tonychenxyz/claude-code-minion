@@ -500,57 +500,69 @@ export class SlackBot {
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const filePath = path.join(tmpDir, `${timestamp}-${safeName}`);
 
-    return new Promise((resolve) => {
-      const token = this.app.client.token;
+    const token = this.app.client.token;
 
-      const request = https.get(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      }, (response) => {
-        if (response.statusCode === 302 || response.statusCode === 301) {
-          // Handle redirect
-          const redirectUrl = response.headers.location;
-          if (redirectUrl) {
-            https.get(redirectUrl, {
-              headers: { 'Authorization': `Bearer ${token}` },
-            }, (redirectResponse) => {
-              const writeStream = fs.createWriteStream(filePath);
-              redirectResponse.pipe(writeStream);
-              writeStream.on('finish', () => {
-                console.log(`Downloaded file: ${filePath}`);
-                resolve(filePath);
-              });
-              writeStream.on('error', (err) => {
-                console.error('Error writing file:', err);
-                resolve(null);
-              });
-            });
-          } else {
-            resolve(null);
+    // Helper to download from a URL
+    const downloadFromUrl = (downloadUrl: string): Promise<string | null> => {
+      return new Promise((resolve) => {
+        const request = https.get(downloadUrl, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        }, (response) => {
+          // Handle redirects
+          if (response.statusCode === 302 || response.statusCode === 301) {
+            const redirectUrl = response.headers.location;
+            if (redirectUrl) {
+              // Recursively follow redirect
+              downloadFromUrl(redirectUrl).then(resolve);
+            } else {
+              console.error('Redirect without location header');
+              resolve(null);
+            }
+            return;
           }
-        } else if (response.statusCode === 200) {
-          const writeStream = fs.createWriteStream(filePath);
-          response.pipe(writeStream);
-          writeStream.on('finish', () => {
-            console.log(`Downloaded file: ${filePath}`);
-            resolve(filePath);
+
+          if (response.statusCode !== 200) {
+            console.error(`Failed to download file: HTTP ${response.statusCode}`);
+            resolve(null);
+            return;
+          }
+
+          // Collect all data chunks
+          const chunks: Buffer[] = [];
+
+          response.on('data', (chunk: Buffer) => {
+            chunks.push(chunk);
           });
-          writeStream.on('error', (err) => {
-            console.error('Error writing file:', err);
+
+          response.on('end', () => {
+            try {
+              const buffer = Buffer.concat(chunks);
+              fs.writeFileSync(filePath, buffer);
+              const sizeMB = (buffer.length / 1024 / 1024).toFixed(2);
+              console.log(`Downloaded file: ${filePath} (${sizeMB} MB)`);
+              resolve(filePath);
+            } catch (err) {
+              console.error('Error writing file:', err);
+              resolve(null);
+            }
+          });
+
+          response.on('error', (err) => {
+            console.error('Error reading response:', err);
             resolve(null);
           });
-        } else {
-          console.error(`Failed to download file: ${response.statusCode}`);
-          resolve(null);
-        }
-      });
+        });
 
-      request.on('error', (err) => {
-        console.error('Error downloading file:', err);
-        resolve(null);
+        request.on('error', (err) => {
+          console.error('Error downloading file:', err);
+          resolve(null);
+        });
       });
-    });
+    };
+
+    return downloadFromUrl(url);
   }
 
   // Process files attached to a message

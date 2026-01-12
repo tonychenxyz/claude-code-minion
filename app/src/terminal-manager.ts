@@ -106,13 +106,10 @@ export class TerminalManager {
         console.log(`[Terminal ${channelId}] ${cleanData}`);
       }
 
-      // Detect when Claude command finishes (shell prompt returns)
-      // Look for common shell prompt patterns at end of output
+      // Detect when Claude command finishes using sentinel marker
       if (this.busyChannels.has(channelId)) {
-        // Check if output ends with a shell prompt ($ or > followed by space/end)
-        const trimmed = cleanData.trim();
-        if (trimmed.endsWith('$') || trimmed.match(/\]\s*$/) || trimmed.match(/>\s*$/)) {
-          // Command likely finished, process next in queue
+        if (cleanData.includes('___CLAUDE_DONE___')) {
+          // Command finished, process next in queue
           this.busyChannels.delete(channelId);
           console.log(`[Terminal ${channelId}] Claude command finished, processing queue...`);
           this.processQueue(channelId);
@@ -190,9 +187,10 @@ export class TerminalManager {
 
     // Build the claude command with session-id for per-channel conversation isolation
     // Instructions are in CLAUDE.md which claude -p reads automatically
-    const claudeCmd = `claude -p "${escapedInput}" --session-id "${sessionId}" --mcp-config "${mcpConfigPath}"`;
+    // Add sentinel marker to detect when command finishes
+    const claudeCmd = `claude -p "${escapedInput}" --session-id "${sessionId}" --mcp-config "${mcpConfigPath}" ; echo "___CLAUDE_DONE___"`;
 
-    console.log(`[Sending to Claude] ${claudeCmd}`);
+    console.log(`[Sending to Claude] claude -p "..." --session-id "${sessionId}"`);
     terminal.pty.write(claudeCmd + '\r');
     terminal.lastActivity = new Date();
     return true;
