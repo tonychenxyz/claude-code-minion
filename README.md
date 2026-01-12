@@ -59,8 +59,15 @@ Talk to Claude Code running on a remote server through Slack. The server initiat
 1. Go to [Slack API](https://api.slack.com/apps)
 2. Click "Create New App" → "From an app manifest"
 3. Select your workspace
-4. Paste the contents of `slack-app-manifest.yaml`
+4. Paste the contents of `app/slack-app-manifest.yaml`
 5. Click "Create"
+
+**Updating an existing app:** If you already have the app installed and want to add slash commands:
+1. Go to your app's settings at [Slack API](https://api.slack.com/apps)
+2. Click "App Manifest" in the sidebar
+3. Replace the manifest with the contents of `app/slack-app-manifest.yaml`
+4. Click "Save Changes"
+5. Go to "OAuth & Permissions" → "Reinstall to Workspace" to apply new permissions
 
 ### 2. Get Tokens
 
@@ -171,7 +178,20 @@ WORKING_DIRECTORY=/path/to/your/projects  # Default: ../projects
 3. A new Claude Code terminal is spawned for this channel
 4. Send messages to interact with Claude
 
-### Commands
+### Slash Commands
+
+Use these slash commands directly from Slack's command bar:
+
+| Command | Description |
+|---------|-------------|
+| `/interrupt` | Interrupt Claude (sends Ctrl+C) |
+| `/reset` | Start a new conversation |
+| `/compact` | Compact Claude's context (run `/compact`) |
+| `/debug` | Show terminal output for debugging |
+
+### Text Commands
+
+You can also type these as regular messages:
 
 | Command | Description |
 |---------|-------------|

@@ -29,10 +29,16 @@ export class TerminalManager {
   private busyChannels: Set<string> = new Set(); // channels with running claude commands
   private messageQueues: Map<string, QueuedMessage[]> = new Map(); // channelId -> queued messages
   private awaitingSessionId: Set<string> = new Set(); // channels waiting to capture session_id from JSON output
+  private onTurnCompleteCallback: ((channelId: string) => void) | null = null;
 
   constructor(workingDirectory: string, appDirectory: string) {
     this.workingDirectory = workingDirectory;
     this.appDirectory = appDirectory;
+  }
+
+  // Set callback for when Claude's turn completes
+  setOnTurnCompleteCallback(callback: (channelId: string) => void): void {
+    this.onTurnCompleteCallback = callback;
   }
 
   async spawnClaudeCode(channelId: string, mcpPort: number): Promise<TerminalInstance> {
@@ -130,6 +136,10 @@ export class TerminalManager {
             // Command finished
             this.busyChannels.delete(channelId);
             console.log(`[Terminal ${channelId}] Claude command finished`);
+            // Notify callback that turn is complete
+            if (this.onTurnCompleteCallback) {
+              this.onTurnCompleteCallback(channelId);
+            }
             // Process next queued message immediately
             this.processQueue(channelId);
             break;
@@ -276,6 +286,39 @@ export class TerminalManager {
 
     // Send Ctrl+C
     terminal.pty.write('\x03');
+    terminal.lastActivity = new Date();
+    return true;
+  }
+
+  // Send /compact command to Claude Code
+  sendCompactCommand(terminalId: string): boolean {
+    const terminal = this.terminals.get(terminalId);
+    if (!terminal) {
+      console.error(`Terminal ${terminalId} not found`);
+      return false;
+    }
+
+    const channelId = terminal.channelId;
+    const mcpConfigPath = this.mcpConfigs.get(channelId);
+    if (!mcpConfigPath) {
+      console.error(`MCP config not found for channel ${channelId}`);
+      return false;
+    }
+
+    const existingSessionId = this.sessionIds.get(channelId);
+    if (!existingSessionId) {
+      console.error(`No session ID found for channel ${channelId} - cannot send /compact`);
+      return false;
+    }
+
+    // Mark channel as busy
+    this.busyChannels.add(channelId);
+
+    // Send /compact command to Claude Code with resume
+    const claudeCmd = `claude -p "/compact" --resume "${existingSessionId}" --mcp-config "${mcpConfigPath}" ; echo "___CLAUDE_DONE___"`;
+    console.log(`[Sending /compact] claude -p "/compact" --resume "${existingSessionId.substring(0, 8)}..."`);
+
+    terminal.pty.write(claudeCmd + '\r');
     terminal.lastActivity = new Date();
     return true;
   }

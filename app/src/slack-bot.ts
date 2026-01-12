@@ -54,9 +54,26 @@ export class SlackBot {
     });
 
     this.setupEventHandlers();
+    this.setupTurnCompleteCallback();
+  }
+
+  private setupTurnCompleteCallback(): void {
+    this.terminalManager.setOnTurnCompleteCallback(async (channelId: string) => {
+      try {
+        await this.app.client.chat.postMessage({
+          channel: channelId,
+          text: ':double_vertical_bar: Agent turn complete',
+        });
+      } catch (error) {
+        console.error('Failed to send turn complete message:', error);
+      }
+    });
   }
 
   private setupEventHandlers(): void {
+    // Handle slash commands
+    this.setupSlashCommands();
+
     // Handle DMs - session token configuration
     this.app.message(async ({ message, say, client }) => {
       // Ignore bot messages
@@ -211,10 +228,12 @@ export class SlackBot {
       const success = this.terminalManager.sendInterrupt(updatedSession.terminalId);
       // Clear busy state so next message can be processed
       this.terminalManager.clearBusyState(channelId);
+      // Clear message queue on interrupt
+      this.messageQueues.set(channelId, []);
       if (success) {
         await client.chat.postMessage({
           channel: channelId,
-          text: `⏹️ Interrupted Claude Code (sent Ctrl+C)`,
+          text: `⏹️ Interrupted Claude Code (sent Ctrl+C). Message queue cleared.`,
         });
       } else {
         await client.chat.postMessage({
@@ -489,6 +508,119 @@ export class SlackBot {
       default:
         console.log('Unknown MCP message type:', type);
     }
+  }
+
+  private setupSlashCommands(): void {
+    // /reset - Reset conversation (start fresh)
+    this.app.command('/reset', async ({ command, ack, respond }) => {
+      await ack();
+
+      const channelId = command.channel_id;
+      const channelSession = this.sessionManager.getChannelSession(channelId);
+
+      if (!channelSession) {
+        await respond({
+          response_type: 'ephemeral',
+          text: '❌ No Claude Code session in this channel. Send a message first to start one.',
+        });
+        return;
+      }
+
+      this.terminalManager.resetConversation(channelId);
+      this.messageQueues.set(channelId, []);
+
+      await respond({
+        response_type: 'in_channel',
+        text: '🔄 Conversation reset. Next message will start a new Claude Code session.',
+      });
+    });
+
+    // /interrupt - Interrupt current Claude operation
+    this.app.command('/interrupt', async ({ command, ack, respond }) => {
+      await ack();
+
+      const channelId = command.channel_id;
+      const channelSession = this.sessionManager.getChannelSession(channelId);
+
+      if (!channelSession) {
+        await respond({
+          response_type: 'ephemeral',
+          text: '❌ No Claude Code session in this channel.',
+        });
+        return;
+      }
+
+      const success = this.terminalManager.sendInterrupt(channelSession.terminalId);
+      this.terminalManager.clearBusyState(channelId);
+      // Clear message queue on interrupt
+      this.messageQueues.set(channelId, []);
+
+      if (success) {
+        await respond({
+          response_type: 'in_channel',
+          text: '⏹️ Interrupted Claude Code (sent Ctrl+C). Message queue cleared.',
+        });
+      } else {
+        await respond({
+          response_type: 'ephemeral',
+          text: '❌ Failed to interrupt - terminal not found',
+        });
+      }
+    });
+
+    // /compact - Trigger Claude Code's /compact command
+    this.app.command('/compact', async ({ command, ack, respond }) => {
+      await ack();
+
+      const channelId = command.channel_id;
+      const channelSession = this.sessionManager.getChannelSession(channelId);
+
+      if (!channelSession) {
+        await respond({
+          response_type: 'ephemeral',
+          text: '❌ No Claude Code session in this channel.',
+        });
+        return;
+      }
+
+      const success = this.terminalManager.sendCompactCommand(channelSession.terminalId);
+
+      if (success) {
+        await respond({
+          response_type: 'in_channel',
+          text: '📦 Sending /compact to Claude Code...',
+        });
+      } else {
+        await respond({
+          response_type: 'ephemeral',
+          text: '❌ Failed to send compact command - terminal not found',
+        });
+      }
+    });
+
+    // /debug - Show terminal output
+    this.app.command('/debug', async ({ command, ack, respond }) => {
+      await ack();
+
+      const channelId = command.channel_id;
+      const channelSession = this.sessionManager.getChannelSession(channelId);
+
+      if (!channelSession) {
+        await respond({
+          response_type: 'ephemeral',
+          text: '❌ No Claude Code session in this channel.',
+        });
+        return;
+      }
+
+      const output = this.terminalManager.getOutput(channelSession.terminalId, 30);
+      const outputText = output.join('').slice(-3000); // Last 3000 chars
+
+      await respond({
+        response_type: 'ephemeral',
+        text: `📟 Terminal output (last 30 chunks):\n\`\`\`\n${outputText || '(no output)'}\n\`\`\``,
+      });
+    });
   }
 
   async start(): Promise<void> {
