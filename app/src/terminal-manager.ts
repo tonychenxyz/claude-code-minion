@@ -107,12 +107,20 @@ export class TerminalManager {
       }
 
       // Detect when Claude command finishes using sentinel marker
+      // The marker must appear at the START of a line (after newline) to distinguish
+      // from the shell echoing the command itself
       if (this.busyChannels.has(channelId)) {
-        if (cleanData.includes('___CLAUDE_DONE___')) {
-          // Command finished, process next in queue
-          this.busyChannels.delete(channelId);
-          console.log(`[Terminal ${channelId}] Claude command finished, processing queue...`);
-          this.processQueue(channelId);
+        // Check if marker appears at start of line (real output) vs embedded in command echo
+        const lines = cleanData.split('\n');
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+          if (trimmedLine === '___CLAUDE_DONE___') {
+            // Command finished, process next in queue
+            this.busyChannels.delete(channelId);
+            console.log(`[Terminal ${channelId}] Claude command finished, processing queue...`);
+            this.processQueue(channelId);
+            break;
+          }
         }
       }
     });
