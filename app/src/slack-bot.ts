@@ -503,19 +503,21 @@ export class SlackBot {
     const token = this.app.client.token;
 
     // Helper to download from a URL
-    const downloadFromUrl = (downloadUrl: string): Promise<string | null> => {
+    const downloadFromUrl = (downloadUrl: string, includeAuth: boolean): Promise<string | null> => {
       return new Promise((resolve) => {
-        const request = https.get(downloadUrl, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        }, (response) => {
-          // Handle redirects
+        const headers: Record<string, string> = {};
+        if (includeAuth) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const request = https.get(downloadUrl, { headers }, (response) => {
+          // Handle redirects - don't include auth header for redirect URLs (they're signed)
           if (response.statusCode === 302 || response.statusCode === 301) {
             const redirectUrl = response.headers.location;
             if (redirectUrl) {
-              // Recursively follow redirect
-              downloadFromUrl(redirectUrl).then(resolve);
+              console.log(`Following redirect to: ${redirectUrl.substring(0, 50)}...`);
+              // Redirect URLs are signed and don't need auth
+              downloadFromUrl(redirectUrl, false).then(resolve);
             } else {
               console.error('Redirect without location header');
               resolve(null);
@@ -525,15 +527,23 @@ export class SlackBot {
 
           if (response.statusCode !== 200) {
             console.error(`Failed to download file: HTTP ${response.statusCode}`);
-            resolve(null);
+            // Log response body for debugging
+            let body = '';
+            response.on('data', (chunk) => body += chunk);
+            response.on('end', () => {
+              console.error('Response body:', body.substring(0, 500));
+              resolve(null);
+            });
             return;
           }
 
           // Collect all data chunks
           const chunks: Buffer[] = [];
+          let totalSize = 0;
 
           response.on('data', (chunk: Buffer) => {
             chunks.push(chunk);
+            totalSize += chunk.length;
           });
 
           response.on('end', () => {
@@ -541,7 +551,7 @@ export class SlackBot {
               const buffer = Buffer.concat(chunks);
               fs.writeFileSync(filePath, buffer);
               const sizeMB = (buffer.length / 1024 / 1024).toFixed(2);
-              console.log(`Downloaded file: ${filePath} (${sizeMB} MB)`);
+              console.log(`Downloaded file: ${filePath} (${sizeMB} MB, ${chunks.length} chunks)`);
               resolve(filePath);
             } catch (err) {
               console.error('Error writing file:', err);
@@ -562,7 +572,8 @@ export class SlackBot {
       });
     };
 
-    return downloadFromUrl(url);
+    // Start download with auth header for initial Slack URL
+    return downloadFromUrl(url, true);
   }
 
   // Process files attached to a message
