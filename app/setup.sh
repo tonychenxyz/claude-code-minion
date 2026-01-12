@@ -52,17 +52,17 @@ if [ ! -d "../projects" ]; then
     echo "✓ Created ../projects directory"
 fi
 
-# Check for .env file
-if [ ! -f ".env" ]; then
+# Check for .env file at root level
+if [ ! -f "../.env" ]; then
     echo ""
     echo "═══════════════════════════════════════════════════════════"
     echo "  CONFIGURATION REQUIRED"
     echo "═══════════════════════════════════════════════════════════"
     echo ""
     echo "No .env file found. Creating from template..."
-    cp .env.example .env
+    cp ../.env.example ../.env
     echo ""
-    echo "Please edit app/.env and add your Slack tokens:"
+    echo "Please edit .env (in root directory) and add your tokens:"
     echo "  - SLACK_BOT_TOKEN (starts with xoxb-)"
     echo "  - SLACK_APP_TOKEN (starts with xapp-)"
     echo "  - CLAUDE_CODE_OAUTH_TOKEN (from 'claude setup-token')"

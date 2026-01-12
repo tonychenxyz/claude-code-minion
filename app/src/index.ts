@@ -12,6 +12,8 @@ const __dirname = path.dirname(__filename);
 
 // App directory is where this script lives (app/dist -> app/)
 const appDirectory = path.resolve(__dirname, '..');
+// Root directory is parent of app/
+const rootDirectory = path.resolve(appDirectory, '..');
 
 interface Config {
   slackBotToken: string;
@@ -22,8 +24,8 @@ interface Config {
 }
 
 function loadConfig(): Config {
-  // Try to load from .env file in app directory
-  const envPath = path.join(appDirectory, '.env');
+  // Try to load from .env file in root directory
+  const envPath = path.join(rootDirectory, '.env');
   if (fs.existsSync(envPath)) {
     const envContent = fs.readFileSync(envPath, 'utf-8');
     for (const line of envContent.split('\n')) {
@@ -44,13 +46,13 @@ function loadConfig(): Config {
 
   if (!slackBotToken) {
     console.error('Error: SLACK_BOT_TOKEN is required');
-    console.error('Set it in app/.env file or as environment variable');
+    console.error('Set it in .env file or as environment variable');
     process.exit(1);
   }
 
   if (!slackAppToken) {
     console.error('Error: SLACK_APP_TOKEN is required');
-    console.error('Set it in app/.env file or as environment variable');
+    console.error('Set it in .env file or as environment variable');
     process.exit(1);
   }
 

@@ -40,21 +40,14 @@ Talk to Claude Code running on a remote server through Slack. The server initiat
 .
 ├── app/                      # Bot application
 │   ├── src/                  # TypeScript source
-│   │   ├── index.ts          # Main entry point
-│   │   ├── slack-bot.ts      # Slack bot (Socket Mode)
-│   │   ├── session-manager.ts
-│   │   ├── terminal-manager.ts
-│   │   ├── mcp-server.ts     # MCP server for Claude Code
-│   │   └── types.ts
 │   ├── dist/                 # Compiled JavaScript
-│   ├── .env                  # Configuration (create from .env.example)
-│   ├── .env.example
 │   ├── package.json
 │   └── setup.sh
 ├── projects/                 # Working directory for Claude Code
 │   ├── .claude/              # Claude settings
-│   │   └── settings.json
 │   └── CLAUDE.md             # Instructions for Claude Code
+├── .env                      # Configuration (create from .env.example)
+├── .env.example
 ├── slack-app-manifest.yaml   # Slack app manifest
 └── README.md
 ```
@@ -145,7 +138,7 @@ npm start
 
 ## Configuration
 
-Create `app/.env` file:
+Create `.env` file in root directory:
 
 ```env
 # Required - Slack tokens
@@ -219,7 +212,7 @@ export CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-full-token-here"
 
 ### Bot not responding
 
-- Check that both Slack tokens are correct in `app/.env`
+- Check that both Slack tokens are correct in `.env`
 - Ensure the bot is invited to the channel
 - Check console for error messages
 
