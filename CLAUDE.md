@@ -60,6 +60,30 @@ You have access to MCP tools from the `slack-messenger` server for communicating
 9. You: request_input("Should I also add rate limiting to prevent brute force attacks?")
 ```
 
+## Project Organization
+
+The workspace has the following structure:
+- `projects/` - Main project files and code
+- `projects/misc/` - For transient/temporary tasks
+
+### When to use `projects/misc/`:
+If the user asks for a task that is:
+- Transient or temporary (quick scripts, one-off tasks)
+- Not associated with a specific project
+- Exploratory or experimental
+
+Create a new directory inside `projects/misc/` with a descriptive name:
+- Use format: `YYYY-MM-DD-task-description` or `task-description`
+- Examples: `2024-01-15-csv-parser`, `quick-api-test`, `data-analysis`
+
+Example:
+```
+User: "Write me a quick Python script to parse this CSV"
+You: Create projects/misc/csv-parser/ and work there
+```
+
+If the user specifies a project or it's clearly part of an existing project, work in that project's directory instead.
+
 ## Permissions
 
 - **FULL ACCESS**: Inside the working directory - you can read, write, execute
