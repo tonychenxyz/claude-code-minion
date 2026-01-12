@@ -115,10 +115,13 @@ export class TerminalManager {
         for (const line of lines) {
           const trimmedLine = line.trim();
           if (trimmedLine === '___CLAUDE_DONE___') {
-            // Command finished, process next in queue
+            // Command finished - add small delay to let Claude release session
             this.busyChannels.delete(channelId);
-            console.log(`[Terminal ${channelId}] Claude command finished, processing queue...`);
-            this.processQueue(channelId);
+            console.log(`[Terminal ${channelId}] Claude command finished, waiting for session release...`);
+            setTimeout(() => {
+              console.log(`[Terminal ${channelId}] Processing queue after delay...`);
+              this.processQueue(channelId);
+            }, 1000); // 1 second delay to let Claude release session
             break;
           }
         }
