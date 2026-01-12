@@ -84,6 +84,68 @@ You: Create projects/misc/csv-parser/ and work there
 
 If the user specifies a project or it's clearly part of an existing project, work in that project's directory instead.
 
+## Long-Running Commands
+
+Before running any bash command, **estimate how long it will take**.
+
+### Quick Commands (< 1 minute)
+Run normally and wait for completion.
+
+### Long Commands (> 1 minute)
+Run in background with output capture, then poll with increasing intervals.
+
+**Step 1: Run in background with output file**
+```bash
+# Example: npm install, build, test suite, etc.
+npm install > /tmp/cmd_output.log 2>&1 &
+echo $!  # Save the PID
+```
+
+**Step 2: Notify user**
+```
+send_message("Starting [command] - estimated ~X minutes. I'll check progress periodically.")
+```
+
+**Step 3: Poll with increasing intervals**
+Use this sleep schedule (exponential backoff):
+- First 30 seconds: check every 5 seconds
+- 30s - 2 min: check every 15 seconds
+- 2 - 5 min: check every 30 seconds
+- 5+ min: check every 60 seconds
+
+```bash
+# Check if process is still running
+ps -p <PID> > /dev/null 2>&1 && echo "running" || echo "done"
+
+# Check output progress
+tail -20 /tmp/cmd_output.log
+```
+
+**Step 4: Report progress**
+Each time you check, if there's meaningful progress:
+```
+send_message("Progress update: [summary of recent output]")
+```
+
+**Step 5: Report completion**
+```
+notify_result("Command completed in X minutes. [summary of result]")
+```
+
+### Examples of Long-Running Commands
+- `npm install` - 1-5 minutes
+- `npm run build` - 1-10 minutes
+- `pytest` (large test suite) - 2-30 minutes
+- `docker build` - 2-15 minutes
+- Training scripts - minutes to hours
+
+### Alternative: Use `watch` or `tail -f`
+For commands with streaming output:
+```bash
+# Run command, then in another check:
+tail -f /tmp/cmd_output.log | head -50
+```
+
 ## Permissions
 
 - **FULL ACCESS**: Inside the working directory - you can read, write, execute
