@@ -46,77 +46,18 @@ async function sendToOrchestrator(data: any): Promise<void> {
   });
 }
 
-async function getFromOrchestrator(path: string): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const url = new URL(ORCHESTRATOR_URL);
-
-    const options: http.RequestOptions = {
-      hostname: url.hostname,
-      port: url.port || 3000,
-      path: path,
-      method: 'GET',
-    };
-
-    const req = http.request(options, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch {
-          resolve({ messages: [] });
-        }
-      });
-    });
-
-    req.on('error', reject);
-    req.end();
-  });
-}
-
 // Create MCP server
 const server = new McpServer({
   name: 'slack-messenger',
   version: '1.0.0',
 });
 
-// Tool: Get pending messages from Slack
+// Tool: Send regular message (no mention)
 server.tool(
-  'get_pending_messages',
-  'Check for new messages from the user in Slack. Call this to see if the user has sent any new messages. Returns an array of pending messages.',
-  {},
-  async () => {
-    try {
-      const response = await getFromOrchestrator(`/messages/${CHANNEL_ID}`);
-      const messages = response.messages || [];
-
-      if (messages.length === 0) {
-        return {
-          content: [{ type: 'text', text: 'No new messages' }],
-        };
-      }
-
-      return {
-        content: [{
-          type: 'text',
-          text: `New messages:\n${messages.map((m: any) => `- ${m.user}: ${m.text}`).join('\n')}`
-        }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: 'text', text: `Failed to get messages: ${error}` }],
-        isError: true,
-      };
-    }
-  }
-);
-
-// Tool: Send markdown message to Slack
-server.tool(
-  'send_message',
-  'Send a markdown-formatted message to the user in Slack. Use this to communicate progress, results, or ask questions.',
+  'send_regular_message',
+  'Send a message to the user in Slack WITHOUT mentioning them. Use this frequently to log your thoughts, actions, and progress.',
   {
-    message: z.string().describe('The markdown message to send to Slack'),
+    message: z.string().describe('The message to send'),
   },
   async ({ message }) => {
     try {
@@ -125,91 +66,23 @@ server.tool(
         content: message,
       });
       return {
-        content: [{ type: 'text', text: 'Message sent successfully' }],
+        content: [{ type: 'text', text: 'Message sent' }],
       };
     } catch (error) {
       return {
-        content: [{ type: 'text', text: `Failed to send message: ${error}` }],
+        content: [{ type: 'text', text: `Failed: ${error}` }],
         isError: true,
       };
     }
   }
 );
 
-// Tool: Send file to Slack (text content)
+// Tool: Send mention message (mentions the user)
 server.tool(
-  'send_file',
-  'Send a text file to the user in Slack. Use this to share code files, logs, or other text content.',
+  'send_mention_message',
+  'Send a message that @mentions the user. Use this when: (1) you have FINISHED the request, or (2) you need user input to proceed.',
   {
-    filename: z.string().describe('The filename to display in Slack'),
-    content: z.string().describe('The file content (text only)'),
-  },
-  async ({ filename, content }) => {
-    try {
-      await sendToOrchestrator({
-        type: 'file',
-        filename,
-        fileContent: content,
-      });
-      return {
-        content: [{ type: 'text', text: `File "${filename}" sent successfully` }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: 'text', text: `Failed to send file: ${error}` }],
-        isError: true,
-      };
-    }
-  }
-);
-
-// Tool: Upload file from disk to Slack (supports binary files like images)
-server.tool(
-  'upload_file',
-  'Upload a file from disk to Slack. Use this to share images (PNG, JPG), PDFs, or any file from the filesystem. Supports binary files.',
-  {
-    file_path: z.string().describe('The absolute path to the file to upload'),
-    title: z.string().optional().describe('Optional title for the file (defaults to filename)'),
-  },
-  async ({ file_path, title }) => {
-    try {
-      // Check if file exists
-      if (!fs.existsSync(file_path)) {
-        return {
-          content: [{ type: 'text', text: `File not found: ${file_path}` }],
-          isError: true,
-        };
-      }
-
-      // Read file as base64
-      const fileBuffer = fs.readFileSync(file_path);
-      const base64Content = fileBuffer.toString('base64');
-      const filename = path.basename(file_path);
-
-      await sendToOrchestrator({
-        type: 'file_upload',
-        filename,
-        title: title || filename,
-        base64Content,
-      });
-      return {
-        content: [{ type: 'text', text: `File "${filename}" uploaded successfully` }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: 'text', text: `Failed to upload file: ${error}` }],
-        isError: true,
-      };
-    }
-  }
-);
-
-// Tool: Mention/tag user
-server.tool(
-  'request_input',
-  'Tag/mention the user in Slack to request their input or attention. Use this when you need the user to make a decision or provide information.',
-  {
-    message: z.string().describe('The message to send along with the mention'),
+    message: z.string().describe('The message to send with @mention'),
   },
   async ({ message }) => {
     try {
@@ -219,61 +92,49 @@ server.tool(
         mentionText: message,
       });
       return {
-        content: [{ type: 'text', text: 'User mentioned successfully' }],
+        content: [{ type: 'text', text: 'Mention sent' }],
       };
     } catch (error) {
       return {
-        content: [{ type: 'text', text: `Failed to mention user: ${error}` }],
+        content: [{ type: 'text', text: `Failed: ${error}` }],
         isError: true,
       };
     }
   }
 );
 
-// Tool: Notify action being performed
+// Tool: Upload file from disk to Slack (supports binary files like images)
 server.tool(
-  'notify_action',
-  'Notify the user that you are performing an action. Call this BEFORE performing significant operations like editing files, running commands, or making API calls.',
+  'upload_file',
+  'Upload a file from disk to Slack. Use for images, PDFs, or any file.',
   {
-    action: z.string().describe('Description of the action being performed'),
+    file_path: z.string().describe('The absolute path to the file to upload'),
   },
-  async ({ action }) => {
+  async ({ file_path }) => {
     try {
-      await sendToOrchestrator({
-        type: 'action',
-        content: action,
-      });
-      return {
-        content: [{ type: 'text', text: 'Action notification sent' }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: 'text', text: `Failed to notify: ${error}` }],
-        isError: true,
-      };
-    }
-  }
-);
+      if (!fs.existsSync(file_path)) {
+        return {
+          content: [{ type: 'text', text: `File not found: ${file_path}` }],
+          isError: true,
+        };
+      }
 
-// Tool: Notify action result
-server.tool(
-  'notify_result',
-  'Notify the user of an action result. Call this AFTER completing significant operations to report success or failure.',
-  {
-    result: z.string().describe('Description of the result'),
-  },
-  async ({ result }) => {
-    try {
+      const fileBuffer = fs.readFileSync(file_path);
+      const base64Content = fileBuffer.toString('base64');
+      const filename = path.basename(file_path);
+
       await sendToOrchestrator({
-        type: 'result',
-        content: result,
+        type: 'file_upload',
+        filename,
+        title: filename,
+        base64Content,
       });
       return {
-        content: [{ type: 'text', text: 'Result notification sent' }],
+        content: [{ type: 'text', text: `File "${filename}" uploaded` }],
       };
     } catch (error) {
       return {
-        content: [{ type: 'text', text: `Failed to notify: ${error}` }],
+        content: [{ type: 'text', text: `Failed: ${error}` }],
         isError: true,
       };
     }
