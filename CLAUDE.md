@@ -107,11 +107,12 @@ send_message("Starting [command] - estimated ~X minutes. I'll check progress per
 ```
 
 **Step 3: Poll with increasing intervals**
-Use this sleep schedule (exponential backoff):
-- First 30 seconds: check every 5 seconds
-- 30s - 2 min: check every 15 seconds
-- 2 - 5 min: check every 30 seconds
-- 5+ min: check every 60 seconds
+Use exponential backoff - start frequent, then increase based on estimated duration:
+- Start: check every 5-10 seconds
+- Gradually increase intervals
+- For very long tasks (hours): checking every 5-10 minutes is fine
+
+Use your judgment based on the command's estimated duration. For a 2-hour training job, checking every 5 minutes is reasonable. For a 3-minute build, check more frequently.
 
 ```bash
 # Check if process is still running
